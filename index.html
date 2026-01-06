@@ -851,16 +851,19 @@
         );
 
         // 5. Main Calculator (Stateless - Props Only)
-        const QuoteCalculator = ({ user, inventory, state, setState, exchangeRate, setExchangeRate, onSaveQuote }) => {
+        const QuoteCalculator = ({ user, inventory, transactions, state, setState, exchangeRate, setExchangeRate, onSaveQuote }) => {
             const {
-                client, project, screenQty, targetWidth, targetHeight, unit,
-                selectedIndoor, assemblyMode, selectedPitch, selectedModuleId,
-                selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId,
+                client, project, screenQty, targetWidth, targetHeight, unit, 
+                selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, 
+                selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, 
                 sizingMode, readyId, margin, extras, overrides, editingRow
             } = state;
 
             const [calculation, setCalculation] = React.useState(null);
-            const [showPreview, setShowPreview] = React.useState(false);
+            const [showPreview, setShowPreview] = React.useState(false); 
+            const [showStock, setShowStock] = React.useState(false);
+
+            const getStock = (id) => transactions ? transactions.filter(t => t.itemId === id).reduce((acc, t) => acc + (t.type === 'in' ? Number(t.qty) : -Number(t.qty)), 0) : 0;
 
             const updateState = (key, value) => setState(prev => ({ ...prev, [key]: value }));
             const updateExtra = (key, field, val) => {
@@ -1061,6 +1064,59 @@
                                 </div>
                                 <div className="flex-1 overflow-auto p-8 bg-slate-200">
                                     <PrintLayout data={{ ...calculation, clientName: client, projectName: project, margin }} currency='INR' exchangeRate={exchangeRate} />
+                                </div>
+                            </div>
+                       </div>
+                    )}
+
+                    {/* Stock Check Modal */}
+                    {showStock && calculation && (
+                        <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
+                            <div className="bg-white max-w-2xl w-full rounded-lg shadow-2xl flex flex-col">
+                                <div className="p-4 border-b flex justify-between items-center bg-slate-100 rounded-t-lg">
+                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Box size={20}/> Stock Availability Check</h2>
+                                    <button onClick={() => setShowStock(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded">Close</button>
+                                </div>
+                                <div className="p-6">
+                                    <table className="w-full text-sm text-left border border-slate-200">
+                                        <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-xs">
+                                            <tr>
+                                                <th className="px-4 py-2">Component</th>
+                                                <th className="px-4 py-2 text-center">Required</th>
+                                                <th className="px-4 py-2 text-center">In Stock</th>
+                                                <th className="px-4 py-2 text-center">Balance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {calculation.detailedItems.map((item, i) => {
+                                                const reqQty = item.qty * screenQty;
+                                                let invId = null;
+                                                if (item.id === 'modules') invId = state.selectedModuleId;
+                                                else if (item.id === 'cabinets') invId = state.selectedCabinetId;
+                                                else if (item.id === 'cards') invId = state.selectedCardId;
+                                                else if (item.id === 'psu') invId = state.selectedPSUId;
+                                                else if (item.id === 'processor') invId = state.selectedProcId;
+                                                else if (item.id === 'ready') invId = state.readyId;
+                                                
+                                                const stock = invId ? getStock(invId) : 0;
+                                                const balance = stock - reqQty;
+                                                
+                                                return (
+                                                    <tr key={i}>
+                                                        <td className="px-4 py-2">
+                                                            <div className="font-medium text-slate-800">{item.name}</div>
+                                                            <div className="text-xs text-slate-500">{item.spec}</div>
+                                                        </td>
+                                                        <td className="px-4 py-2 text-center font-bold">{reqQty}</td>
+                                                        <td className="px-4 py-2 text-center text-slate-600">{stock}</td>
+                                                        <td className={`px-4 py-2 text-center font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {balance}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -1374,6 +1430,9 @@
                                     <ScreenVisualizer cols={calculation.gridCols} rows={calculation.gridRows} module={calculation.moduleType} cabinet={calculation.cabinetType} unit={unit} />
 
                                     <div className="grid grid-cols-2 gap-2 mt-4">
+                                        <button onClick={() => setShowStock(true)} className="col-span-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-2 rounded flex items-center justify-center gap-2 font-bold text-sm transition-colors mb-2">
+                                            <Box size={16} /> Check Stock
+                                        </button>
                                         <button onClick={() => onSaveQuote(calculation.finalPrice)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded flex items-center justify-center gap-2 shadow-sm font-semibold transition-colors">
                                             <Save size={16} /> Save Quote
                                         </button>
@@ -1500,10 +1559,11 @@
                         {view === 'ledger' && <InventoryLedger user={user} inventory={inventory} transactions={transactions} />}
                         {view === 'saved' && <SavedQuotesManager user={user} onLoadQuote={handleLoadQuote} />}
                         {view === 'quote' && (
-                            <QuoteCalculator
-                                user={user}
+                            <QuoteCalculator 
+                                user={user} 
                                 inventory={inventory}
-                                state={calcState}
+                                transactions={transactions} 
+                                state={calcState} 
                                 setState={setCalcState}
                                 exchangeRate={exchangeRate}
                                 setExchangeRate={setExchangeRate}
