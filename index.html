@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admire Signage - LED Quoting Tool v8</title>
-    
+
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
+
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -19,7 +20,7 @@
             darkMode: 'class',
         }
     </script>
-    
+
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -27,29 +28,72 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body { font-family: 'Inter', sans-serif; }
-        
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
         /* Print Styles */
         @media print {
-            @page { size: A4; margin: 0; }
-            .no-print { display: none !important; }
-            .print-only { display: block !important; }
-            body { background: white; -webkit-print-color-adjust: exact; }
-            #root { margin: 0; padding: 0; }
-            .dark { color: black !important; background: white !important; }
-            .modal-content { box-shadow: none !important; border: none !important; }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block !important;
+            }
+
+            body {
+                background: white;
+                -webkit-print-color-adjust: exact;
+            }
+
+            #root {
+                margin: 0;
+                padding: 0;
+            }
+
+            .dark {
+                color: black !important;
+                background: white !important;
+            }
+
+            .modal-content {
+                box-shadow: none !important;
+                border: none !important;
+            }
         }
-        
-        .print-only { display: none; }
-        
+
+        .print-only {
+            display: none;
+        }
+
         /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
     </style>
 </head>
+
 <body class="bg-slate-50 text-slate-900 transition-colors duration-200">
     <div id="root"></div>
 
@@ -60,38 +104,39 @@
         );
 
         const Icons = {
-            Calculator: (props) => <IconBase {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconBase>,
-            Settings: (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>,
-            Printer: (props) => <IconBase {...props}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></IconBase>,
-            Plus: (props) => <IconBase {...props}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>,
-            Trash2: (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>,
-            Monitor: (props) => <IconBase {...props}><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></IconBase>,
-            DollarSign: (props) => <IconBase {...props}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></IconBase>,
-            Box: (props) => <IconBase {...props}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></IconBase>,
-            Wrench: (props) => <IconBase {...props}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></IconBase>,
-            Percent: (props) => <IconBase {...props}><line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></IconBase>,
-            Edit: (props) => <IconBase {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></IconBase>,
-            Sun: (props) => <IconBase {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></IconBase>,
-            Moon: (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></IconBase>,
-            X: (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
-            Eye: (props) => <IconBase {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>,
-            Copy: (props) => <IconBase {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></IconBase>,
-            RefreshCw: (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>,
-            Save: (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>,
-            FileText: (props) => <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/></IconBase>,
-            Download: (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconBase>
+            Calculator: (props) => <IconBase {...props}><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" /></IconBase>,
+            Settings: (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></IconBase>,
+            Printer: (props) => <IconBase {...props}><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect width="12" height="8" x="6" y="14" /></IconBase>,
+            Plus: (props) => <IconBase {...props}><path d="M5 12h14" /><path d="M12 5v14" /></IconBase>,
+            Trash2: (props) => <IconBase {...props}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></IconBase>,
+            Monitor: (props) => <IconBase {...props}><rect width="20" height="14" x="2" y="3" rx="2" /><line x1="8" x2="16" y1="21" y2="21" /><line x1="12" x2="12" y1="17" y2="21" /></IconBase>,
+            DollarSign: (props) => <IconBase {...props}><line x1="12" x2="12" y1="2" y2="22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></IconBase>,
+            Box: (props) => <IconBase {...props}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" x2="12" y1="22.08" y2="12" /></IconBase>,
+            Wrench: (props) => <IconBase {...props}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></IconBase>,
+            Percent: (props) => <IconBase {...props}><line x1="19" x2="5" y1="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></IconBase>,
+            Edit: (props) => <IconBase {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></IconBase>,
+            Sun: (props) => <IconBase {...props}><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></IconBase>,
+            Moon: (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></IconBase>,
+            X: (props) => <IconBase {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></IconBase>,
+            Eye: (props) => <IconBase {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></IconBase>,
+            Copy: (props) => <IconBase {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></IconBase>,
+            RefreshCw: (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></IconBase>,
+            Save: (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></IconBase>,
+            FileText: (props) => <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><polyline points="10 9 9 9 8 9" /></IconBase>,
+            Download: (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></IconBase>
         };
 
         const { Calculator, Settings, Printer, Plus, Trash2, Monitor, DollarSign, Box, Wrench, Percent, Edit, Sun, Moon, X, Eye, Copy, RefreshCw, Save, FileText, Download } = Icons;
 
         // --- Firebase Config Logic ---
         const externalConfig = {
-            apiKey: "AIzaSyDIkWHD0CtEREKXQ55cpf6qtLJ9XXG31cY",
-  authDomain: "ledtool9.firebaseapp.com",
-  projectId: "ledtool9",
-  storageBucket: "ledtool9.firebasestorage.app",
-  messagingSenderId: "242017526092",
-  appId: "1:242017526092:web:6cc60a8e040d31a4602fe9"
+              apiKey: "AIzaSyAvueWxge1MyGoj9JRPFP5cGF8EVb240XE",
+  authDomain: "led-single.firebaseapp.com",
+  projectId: "led-single",
+  storageBucket: "led-single.firebasestorage.app",
+  messagingSenderId: "820851571866",
+  appId: "1:820851571866:web:516f653701a684d78e7323",
+  measurementId: "G-9LDX0M4YH8"
         };
 
         let firebaseConfig;
@@ -121,9 +166,9 @@
 
         // --- Utils ---
         const formatCurrency = (amount, currency = 'INR', compact = false) => {
-            return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', { 
-                style: 'currency', 
-                currency: currency, 
+            return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
+                style: 'currency',
+                currency: currency,
                 maximumFractionDigits: 0,
                 notation: compact ? "compact" : "standard"
             }).format(amount);
@@ -134,13 +179,15 @@
         // --- Components ---
 
         // 1. Inventory Manager
-        const InventoryManager = ({ user }) => {
+        const InventoryManager = ({ user, transactions = [] }) => {
             const [items, setItems] = React.useState([]);
             const [editingId, setEditingId] = React.useState(null);
             const [newItem, setNewItem] = React.useState({ 
                 type: 'module', brand: '', model: '', vendor: '', pitch: '', 
-                width: 250, height: 250, price: 0, carriage: 0, currency: 'INR', indoor: true,
-                brightness: '', refreshRate: '', scanRate: '', grayScale: ''
+                width: 0, height: 0, price: 0, carriage: 0, currency: 'INR', indoor: true,
+                brightness: '', refreshRate: '', 
+                ledType: '', lampMake: '', material: '', weight: '', avgPower: '', maxPower: '', 
+                contrast: '', viewAngleH: '', viewAngleV: '', ipFront: '', ipBack: ''
             });
             const [loading, setLoading] = React.useState(true);
 
@@ -156,7 +203,18 @@
             }, [user]);
 
             const handleSaveItem = async () => {
-                if (!newItem.brand || !newItem.model) return alert("Brand and Model are required");
+                if (newItem.type === 'module') {
+                    if (!newItem.pitch || !newItem.brand || !newItem.model || !newItem.price || !newItem.carriage || !newItem.width || !newItem.height || !newItem.weight || !newItem.avgPower || !newItem.maxPower || !newItem.brightness || !newItem.refreshRate || !newItem.contrast || !newItem.viewAngleH || !newItem.viewAngleV || !newItem.ipFront || !newItem.ipBack) {
+                        return alert("Please fill all compulsory (*) fields.");
+                    }
+                } else if (newItem.type === 'cabinet') {
+                    if (!newItem.material || !newItem.model || !newItem.price || !newItem.carriage || !newItem.vendor || !newItem.width || !newItem.height || !newItem.ipFront || !newItem.ipBack) {
+                        return alert("Please fill all compulsory (*) fields.");
+                    }
+                } else if (!newItem.brand || !newItem.model) {
+                    return alert("Brand and Model are required");
+                }
+                
                 try {
                     const collectionRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('inventory');
                     
@@ -168,7 +226,17 @@
                         carriage: Number(newItem.carriage || 0),
                         pitch: Number(newItem.pitch),
                         currency: newItem.currency || 'INR', 
-                        indoor: newItem.indoor === 'true' || newItem.indoor === true, 
+                        indoor: newItem.indoor === 'true' || newItem.indoor === true,
+                        material: newItem.material || '',
+                        weight: newItem.weight ? Number(newItem.weight) : 0,
+                        avgPower: newItem.avgPower ? Number(newItem.avgPower) : 0,
+                        maxPower: newItem.maxPower ? Number(newItem.maxPower) : 0,
+                        brightness: newItem.brightness ? parseInt(newItem.brightness) : 0,
+                        refreshRate: newItem.refreshRate ? parseInt(newItem.refreshRate) : 0,
+                        viewAngleH: newItem.viewAngleH ? parseInt(newItem.viewAngleH) : 0,
+                        viewAngleV: newItem.viewAngleV ? parseInt(newItem.viewAngleV) : 0,
+                        ipFront: newItem.ipFront ? parseInt(newItem.ipFront) : 0,
+                        ipBack: newItem.ipBack ? parseInt(newItem.ipBack) : 0,
                         updatedAt: new Date()
                     };
 
@@ -178,7 +246,13 @@
                     } else {
                         await collectionRef.add({ ...itemData, createdAt: new Date() });
                     }
-                    setNewItem({ type: 'module', brand: '', model: '', vendor: '', pitch: '', width: 250, height: 250, price: 0, carriage: 0, currency: 'INR', indoor: true, brightness: '', refreshRate: '', scanRate: '', grayScale: '' });
+                    setNewItem({ 
+                        type: 'module', brand: '', model: '', vendor: '', pitch: '', 
+                        width: 250, height: 250, price: 0, carriage: 0, currency: 'INR', indoor: true,
+                        brightness: '', refreshRate: '', 
+                        ledType: '', lampMake: '', material: '', weight: '', avgPower: '', maxPower: '', 
+                        contrast: '', viewAngleH: '', viewAngleV: '', ipFront: '', ipBack: ''
+                    });
                 } catch (e) { console.error(e); }
             };
 
@@ -188,13 +262,19 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
-            const handleCancelEdit = () => {
+                const handleCancelEdit = () => {
                 setEditingId(null);
-                setNewItem({ type: 'module', brand: '', model: '', vendor: '', pitch: '', width: 250, height: 250, price: 0, carriage: 0, currency: 'INR', indoor: true, brightness: '', refreshRate: '', scanRate: '', grayScale: '' });
+                setNewItem({ 
+                    type: 'module', brand: '', model: '', vendor: '', pitch: '', 
+                    width: 250, height: 250, price: 0, carriage: 0, currency: 'INR', indoor: true,
+                    brightness: '', refreshRate: '', 
+                    ledType: '', lampMake: '', material: '', weight: '', avgPower: '', maxPower: '', 
+                    contrast: '', viewAngleH: '', viewAngleV: '', ipFront: '', ipBack: ''
+                });
             };
 
             const handleDelete = async (id) => {
-                if(confirm("Delete this item?")) {
+                if (confirm("Delete this item?")) {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('inventory').doc(id).delete();
                 }
             };
@@ -203,7 +283,7 @@
                 <div className="p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
-                            <Box className="w-5 h-5 text-teal-600 dark:text-teal-400" /> Inventory Management
+                            <Box className="w-5 h-5 text-teal-600 dark:text-teal-400" /> Components Management
                         </h2>
                     </div>
 
@@ -213,7 +293,7 @@
                             <h3 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">{editingId ? 'Editing Item' : 'Add New Item'}</h3>
                             {editingId && <button onClick={handleCancelEdit} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">Cancel Edit</button>}
                         </div>
-                        
+
                         {/* 1. Type */}
                         <select className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
                             <option value="module">Module</option>
@@ -224,73 +304,84 @@
                             <option value="processor">Processor</option>
                         </select>
 
-                        {/* 2. Pitch (Priority if Module) */}
+                        {/* 2. Module Specific Inputs */}
                         {newItem.type === 'module' && (
-                             <input placeholder="Pitch (e.g. 3.91)" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white border-teal-500 ring-1 ring-teal-500" value={newItem.pitch} onChange={e => setNewItem({...newItem, pitch: e.target.value})} />
+                             <input placeholder="Pitch*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white border-teal-500 ring-1 ring-teal-500" value={newItem.pitch} onChange={e => setNewItem({...newItem, pitch: e.target.value})} />
                         )}
 
-                        <input placeholder="Brand" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.brand} onChange={e => setNewItem({...newItem, brand: e.target.value})} />
-                        <input placeholder="Model" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.model} onChange={e => setNewItem({...newItem, model: e.target.value})} />
-                        <input placeholder="Vendor / Supplier" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.vendor} onChange={e => setNewItem({...newItem, vendor: e.target.value})} />
+                        <input placeholder={newItem.type === 'module' ? "Brand*" : "Brand"} className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.brand} onChange={e => setNewItem({...newItem, brand: e.target.value})} />
+                        <input placeholder={(newItem.type === 'module' || newItem.type === 'cabinet') ? "Model/SKU*" : "Model"} className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.model} onChange={e => setNewItem({...newItem, model: e.target.value})} />
                         
-                        {/* Improved Price & Carriage Inputs */}
+                        {/* Price & Carriage Inputs */}
                         <div className="flex gap-2 items-center col-span-2 md:col-span-1">
                              <div className="flex-1 min-w-[100px]" title="Base Price">
-                                 <input 
-                                     placeholder="Base Price" 
-                                     type="number" 
-                                     className="p-2 w-full border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" 
-                                     value={newItem.price} 
-                                     onChange={e => setNewItem({...newItem, price: e.target.value})} 
-                                 />
-                                 <div className="text-[9px] text-slate-400 mt-0.5 ml-1">BASE</div>
+                                 <input placeholder="Base Rate*" type="number" className="p-2 w-full border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} />
+                                 <div className="text-[9px] text-slate-400 mt-0.5 ml-1">BASE RATE*</div>
                              </div>
                              <span className="text-slate-400 font-bold mb-3">+</span>
                              <div className="flex-1 min-w-[80px]" title="Carriage Inwards">
-                                 <input 
-                                     placeholder="Carriage" 
-                                     type="number" 
-                                     className="p-2 w-full border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" 
-                                     value={newItem.carriage} 
-                                     onChange={e => setNewItem({...newItem, carriage: e.target.value})} 
-                                 />
-                                 <div className="text-[9px] text-slate-400 mt-0.5 ml-1">CARRIAGE</div>
+                                 <input placeholder="Carriage*" type="number" className="p-2 w-full border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.carriage} onChange={e => setNewItem({...newItem, carriage: e.target.value})} />
+                                 <div className="text-[9px] text-slate-400 mt-0.5 ml-1">CARRIAGE*</div>
                              </div>
                              <div className="flex-none mb-3">
-                                 <select 
-                                    className="p-2 border rounded bg-slate-100 dark:bg-slate-600 dark:border-slate-600 dark:text-white"
-                                    value={newItem.currency}
-                                    onChange={e => setNewItem({...newItem, currency: e.target.value})}
-                                >
+                                 <select className="p-2 border rounded bg-slate-100 dark:bg-slate-600 dark:border-slate-600 dark:text-white" value={newItem.currency} onChange={e => setNewItem({...newItem, currency: e.target.value})}>
                                     <option value="INR">INR</option>
                                     <option value="USD">USD</option>
                                 </select>
                              </div>
                         </div>
-                        
-                        {(newItem.type === 'module' || newItem.type === 'cabinet' || newItem.type === 'ready') && (
+
+                        <input placeholder={newItem.type === 'cabinet' ? "Vendor*" : "Vendor"} className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.vendor} onChange={e => setNewItem({...newItem, vendor: e.target.value})} />
+
+                        {newItem.type === 'module' && (
+                            <>
+                                <input placeholder="LED Type" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.ledType} onChange={e => setNewItem({...newItem, ledType: e.target.value})} />
+                                <input placeholder="Lamp Make" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.lampMake} onChange={e => setNewItem({...newItem, lampMake: e.target.value})} />
+                                <input placeholder="Width (mm)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.width} onChange={e => setNewItem({...newItem, width: e.target.value})} />
+                                <input placeholder="Height (mm)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.height} onChange={e => setNewItem({...newItem, height: e.target.value})} />
+                                <input placeholder="Weight/sqm (kg)*" type="number" step="0.01" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.weight} onChange={e => setNewItem({...newItem, weight: e.target.value})} />
+                                <input placeholder="Avg Power/sqm (W)*" type="number" step="0.01" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.avgPower} onChange={e => setNewItem({...newItem, avgPower: e.target.value})} />
+                                <input placeholder="Max Power/sqm (W)*" type="number" step="0.01" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.maxPower} onChange={e => setNewItem({...newItem, maxPower: e.target.value})} />
+                                <input placeholder="Brightness (nits)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.brightness} onChange={e => setNewItem({...newItem, brightness: e.target.value})} />
+                                <input placeholder="Refresh Rate*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.refreshRate} onChange={e => setNewItem({...newItem, refreshRate: e.target.value})} />
+                                <input placeholder="Contrast* (e.g. 5000:1)" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.contrast} onChange={e => setNewItem({...newItem, contrast: e.target.value})} />
+                                <input placeholder="Viewing Angle (H)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.viewAngleH} onChange={e => setNewItem({...newItem, viewAngleH: e.target.value})} />
+                                <input placeholder="Viewing Angle (V)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.viewAngleV} onChange={e => setNewItem({...newItem, viewAngleV: e.target.value})} />
+                                <input placeholder="IP Protection (Front)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.ipFront} onChange={e => setNewItem({...newItem, ipFront: e.target.value})} />
+                                <input placeholder="IP Protection (Back)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.ipBack} onChange={e => setNewItem({...newItem, ipBack: e.target.value})} />
+                                <select className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.indoor} onChange={e => setNewItem({...newItem, indoor: e.target.value})}>
+                                    <option value="true">Indoor (Logic)</option>
+                                    <option value="false">Outdoor (Logic)</option>
+                                 </select>
+                            </>
+                        )}
+
+                        {newItem.type === 'cabinet' && (
+                            <>
+                                <input placeholder="Material*" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.material} onChange={e => setNewItem({...newItem, material: e.target.value})} />
+                                <select className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.indoor} onChange={e => setNewItem({...newItem, indoor: e.target.value})}>
+                                    <option value="true">Indoor</option>
+                                    <option value="false">Outdoor</option>
+                                </select>
+                                <input placeholder="Width (mm)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.width} onChange={e => setNewItem({...newItem, width: e.target.value})} />
+                                <input placeholder="Height (mm)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.height} onChange={e => setNewItem({...newItem, height: e.target.value})} />
+                                <input placeholder="Weight (kg)" type="number" step="1" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.weight} onChange={e => setNewItem({...newItem, weight: e.target.value})} />
+                                <input placeholder="IP Rating (Front)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.ipFront} onChange={e => setNewItem({...newItem, ipFront: e.target.value})} />
+                                <input placeholder="IP Protection (Back)*" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.ipBack} onChange={e => setNewItem({...newItem, ipBack: e.target.value})} />
+                            </>
+                        )}
+
+                        {newItem.type === 'ready' && (
                             <>
                                 <input placeholder="Width (mm)" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.width} onChange={e => setNewItem({...newItem, width: e.target.value})} />
                                 <input placeholder="Height (mm)" type="number" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.height} onChange={e => setNewItem({...newItem, height: e.target.value})} />
                             </>
                         )}
-                        {newItem.type === 'module' && (
-                            <>
-                                 <select className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.indoor} onChange={e => setNewItem({...newItem, indoor: e.target.value})}>
-                                    <option value="true">Indoor</option>
-                                    <option value="false">Outdoor</option>
-                                 </select>
-                                 <input placeholder="Brightness (e.g. 800 nits)" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.brightness} onChange={e => setNewItem({...newItem, brightness: e.target.value})} />
-                                 <input placeholder="Refresh (e.g. 3840Hz)" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.refreshRate} onChange={e => setNewItem({...newItem, refreshRate: e.target.value})} />
-                                 <input placeholder="Scan (e.g. 1/16)" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.scanRate} onChange={e => setNewItem({...newItem, scanRate: e.target.value})} />
-                                 <input placeholder="Grayscale (e.g. 14bit)" className="p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={newItem.grayScale} onChange={e => setNewItem({...newItem, grayScale: e.target.value})} />
-                            </>
-                        )}
-                        <button 
-                            onClick={handleSaveItem} 
+                        <button
+                            onClick={handleSaveItem}
                             className={`px-4 py-2 rounded text-white flex items-center justify-center gap-2 hover:opacity-90 transition ${editingId ? 'bg-amber-600' : 'bg-teal-600'} col-span-2 md:col-span-1`}
                         >
-                            {editingId ? <Edit size={16}/> : <Plus size={16} />} 
+                            {editingId ? <Edit size={16} /> : <Plus size={16} />}
                             {editingId ? 'Update Item' : 'Add Item'}
                         </button>
                     </div>
@@ -302,6 +393,7 @@
                                     <th className="px-4 py-3">Type</th>
                                     <th className="px-4 py-3">Vendor / Brand</th>
                                     <th className="px-4 py-3">Specs</th>
+                                    <th className="px-4 py-3">Stock</th>
                                     <th className="px-4 py-3">Landed Cost</th>
                                     <th className="px-4 py-3">Action</th>
                                 </tr>
@@ -316,6 +408,9 @@
                                             {(item.type === 'module' || item.type === 'ready') && <div className="text-[10px] text-slate-400 mt-1">{item.indoor ? 'Indoor' : 'Outdoor'} • {item.brightness}</div>}
                                         </td>
                                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">{item.width && `${item.width}x${item.height}mm`} {item.pitch && ` | P${item.pitch}`}</td>
+                                        <td className="px-4 py-3 font-bold dark:text-slate-200 text-teal-600">
+                                            {transactions.filter(t => t.itemId === item.id).reduce((acc, t) => acc + (t.type === 'in' ? Number(t.qty) : -Number(t.qty)), 0)}
+                                        </td>
                                         <td className="px-4 py-3 dark:text-slate-200">
                                             <div className="flex flex-col">
                                                 <span className="font-semibold">{formatCurrency((item.price || 0) + (item.carriage || 0), item.currency || 'INR')}</span>
@@ -339,17 +434,17 @@
         // 2. Updated Technical Drawing Visualizer (Responsive & Clean)
         const ScreenVisualizer = ({ cols, rows, module, cabinet, unit }) => {
             if (!module || !cabinet) return null;
-            
+
             // Dimensions
             const cabinetW = cabinet.width;
             const cabinetH = cabinet.height;
             const screenW = cabinetW * cols;
             const screenH = cabinetH * rows;
-            
+
             // Adaptive scaling factors
             const maxDim = Math.max(screenW, screenH);
             const margin = maxDim * 0.15; // 15% margin
-            
+
             const formatDim = (mm) => {
                 if (unit === 'ft') return (mm / 304.8).toFixed(2) + ' ft';
                 return (mm / 1000).toFixed(2) + ' m';
@@ -359,22 +454,22 @@
                 <div className="w-full flex flex-col bg-white rounded-lg border border-slate-200 overflow-hidden">
                     <div className="w-full h-full min-h-[300px] p-8 flex items-center justify-center">
                         <div className="relative" style={{ aspectRatio: `${screenW}/${screenH}`, width: '100%', maxHeight: '400px' }}>
-                             {/* Top Dimension */}
-                             <div className="absolute -top-8 left-0 right-0 text-center text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
+                            {/* Top Dimension */}
+                            <div className="absolute -top-8 left-0 right-0 text-center text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
                                 <div className="h-[1px] flex-1 bg-slate-300"></div>
                                 <span>{formatDim(screenW)} ({cols} Cols)</span>
                                 <div className="h-[1px] flex-1 bg-slate-300"></div>
-                             </div>
+                            </div>
 
-                             {/* Left Dimension */}
-                             <div className="absolute -left-8 top-0 bottom-0 text-center text-xs font-bold text-slate-500 flex flex-col items-center justify-center gap-2" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                            {/* Left Dimension */}
+                            <div className="absolute -left-8 top-0 bottom-0 text-center text-xs font-bold text-slate-500 flex flex-col items-center justify-center gap-2" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
                                 <div className="w-[1px] flex-1 bg-slate-300"></div>
                                 <span>{formatDim(screenH)} ({rows} Rows)</span>
                                 <div className="w-[1px] flex-1 bg-slate-300"></div>
-                             </div>
+                            </div>
 
-                             {/* The Grid Itself */}
-                             <div 
+                            {/* The Grid Itself */}
+                            <div
                                 className="w-full h-full grid bg-slate-800 border-2 border-slate-900 shadow-xl"
                                 style={{
                                     gridTemplateColumns: `repeat(${cols}, 1fr)`,
@@ -386,6 +481,94 @@
                                 ))}
                             </div>
                         </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 3.5 Inventory Ledger
+        const InventoryLedger = ({ user, inventory, transactions }) => {
+            const [newTx, setNewTx] = React.useState({
+                date: new Date().toISOString().split('T')[0],
+                type: 'in', itemId: '', qty: '', source: '', location: '', notes: ''
+            });
+
+            const handleAddTx = async () => {
+                if (!newTx.itemId || !newTx.qty) return alert("Item and Quantity are required");
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('transactions').add({
+                        ...newTx,
+                        qty: Number(newTx.qty),
+                        createdAt: new Date()
+                    });
+                    setNewTx({ ...newTx, qty: '', source: '', notes: '' });
+                } catch (e) { console.error(e); }
+            };
+
+            const getStock = (id) => transactions.filter(t => t.itemId === id).reduce((acc, t) => acc + (t.type === 'in' ? t.qty : -t.qty), 0);
+
+            return (
+                <div className="p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                     <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                            <Box className="w-5 h-5 text-teal-600 dark:text-teal-400" /> Stock Ledger
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-7 gap-2 mb-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg items-end">
+                        <div className="col-span-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-500">Date</label>
+                            <input type="date" className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-white" value={newTx.date} onChange={e => setNewTx({...newTx, date: e.target.value})} />
+                        </div>
+                        <div className="col-span-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-500">Action</label>
+                            <select className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-white" value={newTx.type} onChange={e => setNewTx({...newTx, type: e.target.value})}>
+                                <option value="in">Stock IN</option>
+                                <option value="out">Stock OUT</option>
+                            </select>
+                        </div>
+                        <div className="col-span-2">
+                             <label className="text-[10px] uppercase font-bold text-slate-500">Component</label>
+                             <select className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-white" value={newTx.itemId} onChange={e => setNewTx({...newTx, itemId: e.target.value})}>
+                                <option value="">Select Item...</option>
+                                {inventory.map(i => <option key={i.id} value={i.id}>{i.brand} {i.model} (Curr: {getStock(i.id)})</option>)}
+                             </select>
+                        </div>
+                        <div className="col-span-1">
+                             <label className="text-[10px] uppercase font-bold text-slate-500">Qty</label>
+                             <input type="number" placeholder="Qty" className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-white" value={newTx.qty} onChange={e => setNewTx({...newTx, qty: e.target.value})} />
+                        </div>
+                        <div className="col-span-1">
+                             <label className="text-[10px] uppercase font-bold text-slate-500">Loc/Source</label>
+                             <input placeholder="Source/Loc" className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-white" value={newTx.source} onChange={e => setNewTx({...newTx, source: e.target.value})} />
+                        </div>
+                         <button onClick={handleAddTx} className="bg-teal-600 text-white p-2 rounded hover:bg-teal-700 font-bold text-sm h-[38px]">Add</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left border border-slate-200 dark:border-slate-700 rounded">
+                            <thead className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 uppercase">
+                                <tr>
+                                    <th className="px-4 py-2">Date</th>
+                                    <th className="px-4 py-2">Type</th>
+                                    <th className="px-4 py-2">Component</th>
+                                    <th className="px-4 py-2">Qty</th>
+                                    <th className="px-4 py-2">Source / Loc</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
+                                {transactions.sort((a,b) => new Date(b.date) - new Date(a.date)).map(tx => {
+                                    const item = inventory.find(i => i.id === tx.itemId) || {};
+                                    return (
+                                        <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                            <td className="px-4 py-2 text-slate-500">{tx.date}</td>
+                                            <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded text-xs font-bold ${tx.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{tx.type.toUpperCase()}</span></td>
+                                            <td className="px-4 py-2 font-medium dark:text-slate-200">{item.brand} {item.model}</td>
+                                            <td className="px-4 py-2 font-bold dark:text-slate-200">{tx.qty}</td>
+                                            <td className="px-4 py-2 text-slate-500">{tx.source} {tx.location ? `(${tx.location})` : ''}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             );
@@ -406,7 +589,7 @@
             }, [user]);
 
             const handleDelete = async (id) => {
-                if(confirm("Are you sure you want to delete this quote?")) {
+                if (confirm("Are you sure you want to delete this quote?")) {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('quotes').doc(id).delete();
                 }
             };
@@ -418,7 +601,7 @@
                             <FileText className="w-5 h-5 text-teal-600 dark:text-teal-400" /> Saved Quotes
                         </h2>
                     </div>
-                    
+
                     <div className="grid gap-4">
                         {quotes.map(quote => {
                             const state = quote.calculatorState || {};
@@ -439,7 +622,7 @@
                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">P{pitch}</span>
                                         </div>
                                         <p className="text-sm text-slate-500 mb-2">{quote.client || 'No Client'} • {new Date(quote.updatedAt?.seconds * 1000).toLocaleDateString()}</p>
-                                        
+
                                         <div className="flex gap-2 flex-wrap text-xs text-slate-600 dark:text-slate-400">
                                             <span className="bg-white dark:bg-slate-800 border dark:border-slate-600 px-2 py-1 rounded">Size: {state.targetWidth} x {state.targetHeight} {unit}</span>
                                             <span className="bg-white dark:bg-slate-800 border dark:border-slate-600 px-2 py-1 rounded">Qty: {state.screenQty || 1}</span>
@@ -447,9 +630,9 @@
                                         </div>
                                     </div>
                                     <div className="flex gap-2 ml-4">
-                                        <button onClick={() => onLoadQuote(quote, false)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"><Edit size={14}/> Edit</button>
-                                        <button onClick={() => onLoadQuote(quote, true)} className="px-3 py-2 bg-slate-600 text-white rounded text-sm hover:bg-slate-700 flex items-center gap-1"><Copy size={14}/> Clone</button>
-                                        <button onClick={() => handleDelete(quote.id)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                        <button onClick={() => onLoadQuote(quote, false)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"><Edit size={14} /> Edit</button>
+                                        <button onClick={() => onLoadQuote(quote, true)} className="px-3 py-2 bg-slate-600 text-white rounded text-sm hover:bg-slate-700 flex items-center gap-1"><Copy size={14} /> Clone</button>
+                                        <button onClick={() => handleDelete(quote.id)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
                             );
@@ -463,10 +646,10 @@
         // 4. Print Layout
         const PrintLayout = ({ data, currency, exchangeRate }) => {
             if (!data || !data.moduleType) return null;
-            
-            const { 
-                clientName, projectName, finalWidth, finalHeight, totalCabinets, 
-                moduleType, cabinetType, detailedItems, breakdown, 
+
+            const {
+                clientName, projectName, finalWidth, finalHeight, totalCabinets,
+                moduleType, cabinetType, detailedItems, breakdown,
                 screenQty, totalProjectSell, matrix, assemblyMode
             } = data;
 
@@ -590,13 +773,13 @@
             <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 dark:text-slate-400">{label}</label>
                 <div className="flex items-center">
-                    <input 
-                        type="number" 
-                        value={extras[fieldKey].val} 
-                        onChange={e => updateExtra(fieldKey, 'val', e.target.value)} 
-                        className="w-full p-2 border rounded-l text-sm border-r-0 dark:bg-slate-700 dark:border-slate-600 dark:text-white" 
+                    <input
+                        type="number"
+                        value={extras[fieldKey].val}
+                        onChange={e => updateExtra(fieldKey, 'val', e.target.value)}
+                        className="w-full p-2 border rounded-l text-sm border-r-0 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                     />
-                    <button 
+                    <button
                         onClick={() => updateExtra(fieldKey, 'type', extras[fieldKey].type === 'abs' ? 'pct' : 'abs')}
                         className={`px-3 py-2 text-xs font-bold border rounded-r w-16 transition-colors dark:border-slate-600 ${extras[fieldKey].type === 'pct' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-600 dark:text-slate-300'}`}
                     >
@@ -609,14 +792,14 @@
         // 5. Main Calculator (Stateless - Props Only)
         const QuoteCalculator = ({ user, inventory, state, setState, exchangeRate, setExchangeRate, onSaveQuote }) => {
             const {
-                client, project, screenQty, targetWidth, targetHeight, unit, 
-                selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, 
-                selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, 
+                client, project, screenQty, targetWidth, targetHeight, unit,
+                selectedIndoor, assemblyMode, selectedPitch, selectedModuleId,
+                selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId,
                 sizingMode, readyId, margin, extras, overrides, editingRow
             } = state;
 
             const [calculation, setCalculation] = React.useState(null);
-            const [showPreview, setShowPreview] = React.useState(false); 
+            const [showPreview, setShowPreview] = React.useState(false);
 
             const updateState = (key, value) => setState(prev => ({ ...prev, [key]: value }));
             const updateExtra = (key, field, val) => {
@@ -640,17 +823,41 @@
                 updateState('editingRow', editingRow === id ? null : id);
             };
 
+            const handleReset = () => {
+                if (confirm("Reset calculator to defaults?")) {
+                    setState({
+                        client: '', project: '', screenQty: '', targetWidth: '', targetHeight: '', unit: 'ft', 
+                        selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
+                        selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
+                        selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
+                        margin: '', pricingMode: 'margin',
+                        extras: {
+                            assembly: { val: 0, type: 'abs' }, 
+                            hardware: { val: 0, type: 'abs' }, 
+                            packaging: { val: 0, type: 'abs' }, 
+                            transport: { val: 0, type: 'abs' }, 
+                            install: { val: 0, type: 'abs' }, 
+                            wastage: { val: 0, type: 'abs' }, 
+                            overheads: { val: 0, type: 'abs' }, 
+                            structure: { val: 0, type: 'abs' } 
+                        },
+                        overrides: {},
+                        editingRow: null
+                    });
+                }
+            };
+
             // Filters
             const isIndoor = selectedIndoor === 'true';
             const availableModules = inventory.filter(i => i.type === 'module' && i.indoor === isIndoor);
-            const uniquePitches = [...new Set(availableModules.map(m => m.pitch))].sort((a,b) => a-b);
+            const uniquePitches = [...new Set(availableModules.map(m => m.pitch))].sort((a, b) => a - b);
             const filteredModules = selectedPitch ? availableModules.filter(m => m.pitch == selectedPitch) : [];
             const readyUnits = inventory.filter(i => i.type === 'ready' && i.indoor === isIndoor);
 
             const selectedModule = inventory.find(i => i.id === selectedModuleId);
             const cabinets = inventory.filter(i => {
                 if (i.type !== 'cabinet') return false;
-                if (!selectedModule) return true; 
+                if (!selectedModule) return true;
                 const wMod = i.width % selectedModule.width;
                 const hMod = i.height % selectedModule.height;
                 return wMod === 0 && hMod === 0;
@@ -666,9 +873,9 @@
                     if (!item) return 0;
                     const basePrice = Number(item.price || 0);
                     const carriage = Number(item.carriage || 0);
-                    const totalBase = basePrice + carriage; 
+                    const totalBase = basePrice + carriage;
                     if (item.currency === 'USD') return totalBase * exchangeRate;
-                    return totalBase; 
+                    return totalBase;
                 };
 
                 let module, cabinet, card, psu, proc;
@@ -685,7 +892,7 @@
                     const readyUnit = inventory.find(i => i.id === readyId);
                     proc = inventory.find(i => i.id === selectedProcId);
                     if (!readyUnit) { setCalculation(null); return; }
-                    module = readyUnit; 
+                    module = readyUnit;
                     cabinet = readyUnit;
                 }
 
@@ -706,7 +913,7 @@
                 const totalCabinetsPerScreen = cols * rows;
 
                 // Area Calculation
-                const areaSqFt = (finalW_mm * finalH_mm) / 92903; 
+                const areaSqFt = (finalW_mm * finalH_mm) / 92903;
 
                 // --- BUILD ITEM LIST ---
                 let rawItems = [];
@@ -749,12 +956,12 @@
                     if (item.type === 'pct') calculatedExtras[key] = costPerScreenBase * (item.val / 100);
                     else calculatedExtras[key] = Number(item.val);
                 });
-                const totalExtrasPerScreen = Object.values(calculatedExtras).reduce((a,b) => a + b, 0);
-                
+                const totalExtrasPerScreen = Object.values(calculatedExtras).reduce((a, b) => a + b, 0);
+
                 // Totals
                 const costPerScreen = costPerScreenBase + totalExtrasPerScreen;
                 const totalProjectCost = costPerScreen * screenQty;
-                const sellPerScreen = costPerScreen * (1 + margin/100);
+                const sellPerScreen = costPerScreen * (1 + margin / 100);
                 const totalProjectSell = sellPerScreen * screenQty;
                 const marginPerScreen = sellPerScreen - costPerScreen;
                 const marginTotal = totalProjectSell - totalProjectCost;
@@ -779,27 +986,27 @@
 
             return (
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 relative">
-                    
+
                     {/* PDF Preview Modal */}
                     {showPreview && calculation && (
                         <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
                             <div className="bg-white max-w-4xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col">
                                 <div className="p-4 border-b flex justify-between items-center bg-slate-100 rounded-t-lg">
-                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Eye size={20}/> Print Preview</h2>
+                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Eye size={20} /> Print Preview</h2>
                                     <div className="flex gap-2">
                                         <button onClick={() => setShowPreview(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded">Close</button>
-                                        <button onClick={() => window.print()} className="px-4 py-2 bg-teal-600 text-white hover:bg-teal-700 rounded flex items-center gap-2"><Printer size={16}/> Print / Save PDF</button>
+                                        <button onClick={() => window.print()} className="px-4 py-2 bg-teal-600 text-white hover:bg-teal-700 rounded flex items-center gap-2"><Printer size={16} /> Print / Save PDF</button>
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-auto p-8 bg-slate-200">
-                                    <PrintLayout data={{...calculation, clientName: client, projectName: project, margin}} currency='INR' exchangeRate={exchangeRate} />
+                                    <PrintLayout data={{ ...calculation, clientName: client, projectName: project, margin }} currency='INR' exchangeRate={exchangeRate} />
                                 </div>
                             </div>
                         </div>
                     )}
 
                     <div className="print-only">
-                        {calculation && <PrintLayout data={{...calculation, clientName: client, projectName: project, margin}} currency='INR' exchangeRate={exchangeRate} />}
+                        {calculation && <PrintLayout data={{ ...calculation, clientName: client, projectName: project, margin }} currency='INR' exchangeRate={exchangeRate} />}
                     </div>
 
                     {/* Left: Configuration */}
@@ -808,18 +1015,19 @@
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Settings className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Project Specs</h3>
                                 <div className="flex items-center gap-2">
+                                    <button onClick={handleReset} className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded transition-colors mr-1">Reset</button>
                                     <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded px-2" title="Exchange rate for USD items">
                                         <span className="text-[10px] text-slate-500 mr-1">1$ = ₹</span>
-                                        <input 
-                                            type="number" 
-                                            value={exchangeRate} 
+                                        <input
+                                            type="number"
+                                            value={exchangeRate}
                                             onChange={e => setExchangeRate(Number(e.target.value))}
                                             className="w-10 bg-transparent text-xs py-1 outline-none font-bold dark:text-white"
                                         />
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <input value={client} onChange={e => updateState('client', e.target.value)} className="p-2 border rounded text-sm w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="Client Name" />
                                 <input value={project} onChange={e => updateState('project', e.target.value)} className="p-2 border rounded text-sm w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="Project Name" />
@@ -868,7 +1076,7 @@
                                         <button onClick={() => { updateState('selectedIndoor', 'false'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`flex-1 py-2 text-sm rounded border transition-colors ${selectedIndoor === 'false' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'}`}>Outdoor</button>
                                     </div>
                                 </div>
-                                
+
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">2. Supply Type</label>
                                     <div className="flex gap-2 mt-1">
@@ -918,7 +1126,7 @@
 
                     {/* Middle: Extras & Costs */}
                     <div className="xl:col-span-4 space-y-6">
-                         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Additional Costs (Per Screen)</h3>
                             <div className="grid grid-cols-2 gap-4 text-sm">
                                 <ExtraInput label="Structure Cost" fieldKey="structure" extras={extras} updateExtra={updateExtra} currency='INR' />
@@ -954,13 +1162,13 @@
                                                                 <Edit size={12} />
                                                             </button>
                                                             {item.isOverridden && (
-                                                                <button onClick={() => clearOverride(item.id)} className="p-1 text-slate-400 hover:text-red-500" title="Reset to calculated"><RefreshCw size={12}/></button>
+                                                                <button onClick={() => clearOverride(item.id)} className="p-1 text-slate-400 hover:text-red-500" title="Reset to calculated"><RefreshCw size={12} /></button>
                                                             )}
                                                         </td>
                                                         <td className="text-right py-2">
                                                             {editingRow === item.id ? (
-                                                                <input 
-                                                                    type="number" 
+                                                                <input
+                                                                    type="number"
                                                                     className="w-16 p-1 text-right text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
                                                                     value={overrides[item.id]?.rate !== undefined ? overrides[item.id].rate : item.unit}
                                                                     onChange={e => handleOverride(item.id, 'rate', e.target.value)}
@@ -971,8 +1179,8 @@
                                                         </td>
                                                         <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700">
                                                             {editingRow === item.id ? (
-                                                                <input 
-                                                                    type="number" 
+                                                                <input
+                                                                    type="number"
                                                                     className="w-12 p-1 text-center text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
                                                                     value={overrides[item.id]?.qty !== undefined ? overrides[item.id].qty : item.qty}
                                                                     onChange={e => handleOverride(item.id, 'qty', e.target.value)}
@@ -1001,12 +1209,54 @@
                                         </table>
                                     </div>
 
-                                    <div className="bg-teal-50 dark:bg-teal-900/30 p-4 rounded-lg">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-sm font-bold text-teal-800 dark:text-teal-300">Margin</span>
-                                            <span className="font-bold text-teal-800 dark:text-teal-300">{margin}%</span>
+                                   <div className="bg-teal-50 dark:bg-teal-900/30 p-4 rounded-lg">
+                                        <div className="flex justify-between items-center mb-2 gap-2">
+                                            <select 
+                                                value={state.pricingMode || 'margin'} 
+                                                onChange={e => updateState('pricingMode', e.target.value)}
+                                                className="bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-200 text-xs font-bold p-1 rounded border-none cursor-pointer focus:ring-0"
+                                            >
+                                                <option value="margin">Margin %</option>
+                                                <option value="sqft">Price / Sq.Ft</option>
+                                                <option value="sqm">Price / Sq.Mtr</option>
+                                                <option value="screen">Price / Screen</option>
+                                            </select>
                                         </div>
-                                        <input type="range" min="0" max="100" value={margin} onChange={e => updateState('margin', Number(e.target.value))} className="w-full accent-teal-600" />
+                                        <input 
+                                            type="number" 
+                                            className="w-full p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white font-bold"
+                                            value={(() => {
+                                                if (!calculation) return margin;
+                                                const mode = state.pricingMode || 'margin';
+                                                if (mode === 'margin') return margin;
+                                                if (mode === 'screen') return Math.round(calculation.matrix.sell.unit);
+                                                if (mode === 'sqft') return Math.round(calculation.matrix.sell.sqft);
+                                                if (mode === 'sqm') return Math.round(calculation.matrix.sell.sqft * 10.7639);
+                                                return 0;
+                                            })()}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                const mode = state.pricingMode || 'margin';
+                                                if (mode === 'margin') {
+                                                    updateState('margin', val);
+                                                } else if (calculation && calculation.costPerScreen > 0) {
+                                                    let targetSell = 0;
+                                                    if (mode === 'screen') targetSell = val;
+                                                    if (mode === 'sqft') targetSell = val * calculation.matrix.sqft.perScreen;
+                                                    if (mode === 'sqm') targetSell = val * (calculation.matrix.sqft.perScreen / 10.7639);
+                                                    
+                                                    const newMargin = ((targetSell - calculation.costPerScreen) / calculation.costPerScreen) * 100;
+                                                    updateState('margin', newMargin);
+                                                }
+                                            }}
+                                        />
+                                        {(state.pricingMode && state.pricingMode !== 'margin') && (
+                                            <div className="text-right mt-1">
+                                                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                                                    = {margin.toFixed(2)}% Margin
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Financial Matrix UI */}
@@ -1039,7 +1289,7 @@
                                                     <td className="p-2 text-right font-bold">{formatCurrency(calculation.matrix.sell.unit, 'INR', false)}</td>
                                                     <td className="p-2 text-right font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40">{formatCurrency(calculation.matrix.sell.total, 'INR', false)}</td>
                                                 </tr>
-                                                 {/* SFT Row */}
+                                                {/* SFT Row */}
                                                 <tr>
                                                     <td className="p-2 font-medium text-slate-400">Total Area</td>
                                                     <td className="p-2 text-right text-slate-500">-</td>
@@ -1061,7 +1311,7 @@
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                                     <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Monitor className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Layout</h3>
                                     <ScreenVisualizer cols={calculation.gridCols} rows={calculation.gridRows} module={calculation.moduleType} cabinet={calculation.cabinetType} unit={unit} />
-                                    
+
                                     <div className="grid grid-cols-2 gap-2 mt-4">
                                         <button onClick={() => onSaveQuote(calculation.finalPrice)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded flex items-center justify-center gap-2 shadow-sm font-semibold transition-colors">
                                             <Save size={16} /> Save Quote
@@ -1088,6 +1338,7 @@
             const [user, setUser] = React.useState(null);
             const [view, setView] = React.useState('quote');
             const [inventory, setInventory] = React.useState([]);
+            const [transactions, setTransactions] = React.useState([]);
             const [darkMode, setDarkMode] = React.useState(false);
             const [exchangeRate, setExchangeRate] = React.useState(84);
 
@@ -1099,14 +1350,14 @@
                 selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
                 margin: 30,
                 extras: {
-                    assembly: { val: 0, type: 'abs' }, 
-                    hardware: { val: 5000, type: 'abs' }, 
-                    packaging: { val: 2000, type: 'abs' }, 
-                    transport: { val: 5000, type: 'abs' }, 
-                    install: { val: 10000, type: 'abs' }, 
-                    wastage: { val: 2000, type: 'abs' }, 
+                    assembly: { val: 0, type: 'abs' },
+                    hardware: { val: 5000, type: 'abs' },
+                    packaging: { val: 2000, type: 'abs' },
+                    transport: { val: 5000, type: 'abs' },
+                    install: { val: 10000, type: 'abs' },
+                    wastage: { val: 2000, type: 'abs' },
                     overheads: { val: 5000, type: 'abs' },
-                    structure: { val: 0, type: 'abs' } 
+                    structure: { val: 0, type: 'abs' }
                 },
                 overrides: {},
                 editingRow: null
@@ -1116,11 +1367,11 @@
 
             React.useEffect(() => {
                 const init = async () => {
-                    if (!isConfigured) return; 
+                    if (!isConfigured) return;
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                         await auth.signInWithCustomToken(__initial_auth_token);
+                        await auth.signInWithCustomToken(__initial_auth_token);
                     } else {
-                         await auth.signInAnonymously();
+                        await auth.signInAnonymously();
                     }
                 };
                 init();
@@ -1133,12 +1384,15 @@
 
             React.useEffect(() => {
                 if (!user || !db) return;
-                return db.collection('artifacts').doc(appId).collection('public').doc('data').collection('inventory')
+                const unsubInv = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('inventory')
                          .onSnapshot(snap => setInventory(snap.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubTx = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('transactions')
+                         .onSnapshot(snap => setTransactions(snap.docs.map(d => ({id: d.id, ...d.data()}))));
+                return () => { unsubInv(); unsubTx(); };
             }, [user]);
 
             const handleSaveQuote = async (finalAmount) => {
-                if(!calcState.client || !calcState.project) return alert("Please enter Client and Project names.");
+                if (!calcState.client || !calcState.project) return alert("Please enter Client and Project names.");
                 try {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('quotes').add({
                         client: calcState.client,
@@ -1148,7 +1402,7 @@
                         updatedAt: new Date()
                     });
                     alert("Quote Saved Successfully!");
-                } catch(e) { console.error(e); alert("Error saving quote."); }
+                } catch (e) { console.error(e); alert("Error saving quote."); }
             };
 
             const handleLoadQuote = (quote, isDuplicate) => {
@@ -1171,7 +1425,8 @@
                         <div className="flex gap-4 items-center">
                             <div className="flex gap-2">
                                 <button onClick={() => setView('quote')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'quote' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Calculator</button>
-                                <button onClick={() => setView('inventory')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'inventory' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Inventory</button>
+                                <button onClick={() => setView('inventory')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'inventory' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Components</button>
+                                <button onClick={() => setView('ledger')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'ledger' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Inventory</button>
                                 <button onClick={() => setView('saved')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'saved' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Saved Quotes</button>
                             </div>
                             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors">
@@ -1180,13 +1435,14 @@
                         </div>
                     </nav>
                     <main className="max-w-[1600px] mx-auto p-6">
-                        {view === 'inventory' && <InventoryManager user={user} />}
+                        {view === 'inventory' && <InventoryManager user={user} transactions={transactions} />}
+                        {view === 'ledger' && <InventoryLedger user={user} inventory={inventory} transactions={transactions} />}
                         {view === 'saved' && <SavedQuotesManager user={user} onLoadQuote={handleLoadQuote} />}
                         {view === 'quote' && (
-                            <QuoteCalculator 
-                                user={user} 
-                                inventory={inventory} 
-                                state={calcState} 
+                            <QuoteCalculator
+                                user={user}
+                                inventory={inventory}
+                                state={calcState}
                                 setState={setCalcState}
                                 exchangeRate={exchangeRate}
                                 setExchangeRate={setExchangeRate}
@@ -1202,4 +1458,5 @@
         root.render(<App />);
     </script>
 </body>
+
 </html>
