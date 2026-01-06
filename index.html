@@ -646,123 +646,184 @@
         // 4. Print Layout
         const PrintLayout = ({ data, currency, exchangeRate }) => {
             if (!data || !data.moduleType) return null;
-
-            const {
-                clientName, projectName, finalWidth, finalHeight, totalCabinets,
-                moduleType, cabinetType, detailedItems, breakdown,
-                screenQty, totalProjectSell, matrix, assemblyMode
+            
+            const { 
+                clientName, projectName, finalWidth, finalHeight, totalCabinets, 
+                moduleType, cabinetType, screenQty, totalProjectSell, gridCols, gridRows
             } = data;
 
+            // Calculations for display
+            const cabW = cabinetType.width || 0;
+            const cabH = cabinetType.height || 0;
+            const modW = moduleType.width || 0;
+            const modH = moduleType.height || 0;
+            
+            // Resolution
+            const cabResW = Math.round(cabW / moduleType.pitch);
+            const cabResH = Math.round(cabH / moduleType.pitch);
+            const screenResW = cabResW * gridCols;
+            const screenResH = cabResH * gridRows;
+
+            // Area
+            const screenWidthM = Number(finalWidth);
+            const screenHeightM = Number(finalHeight);
+            const areaSqm = screenWidthM * screenHeightM;
+            const areaSqft = areaSqm * 10.764;
+
+            // Power & Weight
+            const weightPerCab = cabinetType.weight || 0;
+            const totalWeight = weightPerCab * totalCabinets * screenQty;
+            const avgPower = (moduleType.avgPower || 0) * areaSqm * screenQty;
+            const maxPower = (moduleType.maxPower || 0) * areaSqm * screenQty;
+
             return (
-                <div className="p-12 max-w-[210mm] mx-auto bg-white min-h-screen relative text-slate-800 shadow-xl print:shadow-none print:p-0 print:w-full">
+                <div className="p-8 max-w-[210mm] mx-auto bg-white min-h-screen text-slate-800 print:p-0 print:w-full font-sans text-xs">
                     {/* Header */}
-                    <div className="flex justify-between items-start mb-8 border-b-2 border-slate-800 pb-6">
+                    <div className="flex justify-between items-start mb-6 border-b-2 border-teal-600 pb-4">
                         <div>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-10 h-10 rounded bg-slate-900 flex items-center justify-center text-white font-bold text-xl">A</div>
-                                <div>
-                                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 leading-none">ADMIRE</h1>
-                                    <p className="text-teal-600 font-medium tracking-widest text-[10px] uppercase">Signage Solutions</p>
-                                </div>
+                            <h1 className="text-2xl font-bold text-teal-700 uppercase tracking-wide">Admire Sign & Display Pvt. Ltd.</h1>
+                            <div className="text-[10px] text-slate-600 mt-1 space-y-0.5">
+                                <p>102, Priya Industrial Estate 4, K.T. Industrial Estate</p>
+                                <p>Kherpada, Waliv, Vasai East, Mumbai - 401208</p>
+                                <p>Email: info@admiresignage.com | Web: www.admiresignage.com</p>
                             </div>
                         </div>
                         <div className="text-right">
-                            <h2 className="text-4xl font-light text-slate-400 tracking-wide">QUOTATION</h2>
-                            <p className="text-sm font-bold text-slate-700 mt-2">#{generateId()}</p>
-                            <p className="text-sm text-slate-500">{new Date().toLocaleDateString()}</p>
+                            <h2 className="text-xl font-light text-slate-500">QUOTATION</h2>
+                            <p className="text-sm font-bold text-slate-700">#{generateId()}</p>
+                            <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
                         </div>
                     </div>
 
-                    {/* Info */}
-                    <div className="grid grid-cols-2 gap-8 mb-8">
-                        <div><p className="text-[10px] font-bold text-slate-400 uppercase">Project</p><p className="font-bold">{projectName}</p></div>
-                        <div><p className="text-[10px] font-bold text-slate-400 uppercase">Client</p><p className="font-bold">{clientName}</p></div>
-                    </div>
-
-                    {/* Panel Specs Grid */}
-                    <div className="mb-8 border border-slate-200 rounded-lg p-4 bg-slate-50">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-xs font-bold text-slate-900 uppercase">Panel Specifications</h3>
-                            <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-1 rounded">Quantity: {screenQty} Screens</span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-4 text-xs">
-                            <div><span className="text-slate-500 block">Brightness</span><span className="font-bold">{moduleType?.brightness || '-'}</span></div>
-                            <div><span className="text-slate-500 block">Refresh Rate</span><span className="font-bold">{moduleType?.refreshRate || '-'}</span></div>
-                            <div><span className="text-slate-500 block">Scan Mode</span><span className="font-bold">{moduleType?.scanRate || '-'}</span></div>
-                            <div><span className="text-slate-500 block">Pixel Pitch</span><span className="font-bold">P{moduleType?.pitch || '-'}</span></div>
+                    {/* Client Info */}
+                    <div className="bg-slate-50 p-3 rounded mb-6 border border-slate-200">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><span className="font-bold text-slate-500 uppercase block">Client</span> <span className="font-semibold">{clientName}</span></div>
+                            <div><span className="font-bold text-slate-500 uppercase block">Project</span> <span className="font-semibold">{projectName}</span></div>
                         </div>
                     </div>
 
-                    {/* Detailed BOM Table */}
-                    <div className="mb-8">
-                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Cost Breakdown</h3>
-                        <table className="w-full text-xs border-collapse">
-                            <thead className="bg-slate-100 text-slate-700">
+                    {/* Technical Specs Table */}
+                    <div className="mb-6">
+                        <h3 className="font-bold text-teal-700 uppercase border-b border-teal-200 mb-2 pb-1">Technical Specifications</h3>
+                        <table className="w-full border border-slate-300">
+                            <tbody>
+                                {/* Module Section */}
+                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">MODULE PARAMETERS</td></tr>
                                 <tr>
-                                    <th className="p-2 text-left border-b">Item</th>
-                                    <th className="p-2 text-right border-b">Rate</th>
-                                    <th className="p-2 text-center border-b border-l">Qty (1)</th>
-                                    <th className="p-2 text-right border-b">Amt (1)</th>
-                                    <th className="p-2 text-center border-b border-l font-semibold">Qty ({screenQty})</th>
-                                    <th className="p-2 text-right border-b font-semibold">Amt ({screenQty})</th>
+                                    <td className="p-1 border w-1/4 font-medium">Pixel Pitch</td><td className="p-1 border w-1/4">P{moduleType.pitch}</td>
+                                    <td className="p-1 border w-1/4 font-medium">LED Config</td><td className="p-1 border w-1/4">{moduleType.ledType || '-'}</td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {detailedItems.map((item, i) => (
-                                    <tr key={i}>
-                                        <td className="p-2 font-medium">{item.name} <span className="text-slate-400 font-normal block text-[10px]">{item.spec}</span></td>
-                                        <td className="p-2 text-right">{formatCurrency(item.unit, currency)}</td>
-                                        <td className="p-2 text-center border-l bg-slate-50">{item.qty}</td>
-                                        <td className="p-2 text-right bg-slate-50">{formatCurrency(item.total, currency)}</td>
-                                        <td className="p-2 text-center border-l font-semibold">{item.qty * screenQty}</td>
-                                        <td className="p-2 text-right font-semibold">{formatCurrency(item.total * screenQty, currency)}</td>
-                                    </tr>
-                                ))}
                                 <tr>
-                                    <td className="p-2 font-medium">Add. Costs <span className="text-slate-400 font-normal block text-[10px]">Labour, Transport, etc.</span></td>
-                                    <td className="p-2 text-right">-</td>
-                                    <td className="p-2 text-center border-l bg-slate-50">1 Lot</td>
-                                    <td className="p-2 text-right bg-slate-50">{formatCurrency(breakdown.extras, currency)}</td>
-                                    <td className="p-2 text-center border-l font-semibold">{screenQty} Lots</td>
-                                    <td className="p-2 text-right font-semibold">{formatCurrency(breakdown.extras * screenQty, currency)}</td>
+                                    <td className="p-1 border font-medium">Module Size</td><td className="p-1 border">{modW} x {modH} mm</td>
+                                    <td className="p-1 border font-medium">Brightness</td><td className="p-1 border">{moduleType.brightness} nits</td>
+                                </tr>
+
+                                {/* Cabinet Section */}
+                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">CABINET PARAMETERS</td></tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">Cabinet Size</td><td className="p-1 border">{cabW} x {cabH} mm</td>
+                                    <td className="p-1 border font-medium">Resolution</td><td className="p-1 border">{cabResW} x {cabResH} px</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">Material</td><td className="p-1 border">{cabinetType.material || '-'}</td>
+                                    <td className="p-1 border font-medium">Weight/Cab</td><td className="p-1 border">{weightPerCab} kg</td>
+                                </tr>
+
+                                {/* Screen Section */}
+                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">SCREEN PARAMETERS</td></tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">Total Dimension (m)</td><td className="p-1 border">{screenWidthM} (W) x {screenHeightM} (H)</td>
+                                    <td className="p-1 border font-medium">Total Area</td><td className="p-1 border">{areaSqm.toFixed(2)} Sq.m / {areaSqft.toFixed(2)} Sq.ft</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">Total Resolution</td><td className="p-1 border">{screenResW} x {screenResH} px</td>
+                                    <td className="p-1 border font-medium">Aspect Ratio</td><td className="p-1 border">{(screenResW/screenResH).toFixed(2)}:1</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">Est. Total Weight</td><td className="p-1 border">{totalWeight.toFixed(1)} kg</td>
+                                    <td className="p-1 border font-medium">Max Power</td><td className="p-1 border">{maxPower.toFixed(0)} W</td>
+                                </tr>
+                                
+                                {/* Other Section */}
+                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">SYSTEM SPECIFICATIONS</td></tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">Refresh Rate</td><td className="p-1 border">{moduleType.refreshRate || '-'} Hz</td>
+                                    <td className="p-1 border font-medium">Viewing Angle</td><td className="p-1 border">{moduleType.viewAngleH || '-'}H / {moduleType.viewAngleV || '-'}V</td>
+                                </tr>
+                                <tr>
+                                    <td className="p-1 border font-medium">IP Rating</td><td className="p-1 border">Front IP{moduleType.ipFront || '-'} / Back IP{moduleType.ipBack || '-'}</td>
+                                    <td className="p-1 border font-medium">Input Voltage</td><td className="p-1 border">AC 110V - 240V</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    {/* Financial Matrix */}
-                    <div className="mb-8 page-break-inside-avoid">
-                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Financial Summary</h3>
-                        <table className="w-full text-sm border border-slate-200">
+                    {/* Commercial Quote */}
+                    <div className="mb-6">
+                        <h3 className="font-bold text-teal-700 uppercase border-b border-teal-200 mb-2 pb-1">Commercial Proposal</h3>
+                        <table className="w-full border-collapse">
                             <thead className="bg-slate-800 text-white">
                                 <tr>
-                                    <th className="p-2 text-left w-1/4">Metric</th>
-                                    <th className="p-2 text-right w-1/4">Per Sq.Ft</th>
-                                    <th className="p-2 text-right w-1/4">Per Screen</th>
-                                    <th className="p-2 text-right w-1/4 bg-teal-700">Total Project</th>
+                                    <th className="p-2 text-left w-12">#</th>
+                                    <th className="p-2 text-left">Description</th>
+                                    <th className="p-2 text-center w-20">Qty</th>
+                                    <th className="p-2 text-right w-32">Total Amount</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-200 text-slate-700">
-                                <tr>
-                                    <td className="p-3 font-semibold bg-slate-50">Cost Price</td>
-                                    <td className="p-3 text-right">{formatCurrency(matrix.cost.sqft, currency)}</td>
-                                    <td className="p-3 text-right">{formatCurrency(matrix.cost.unit, currency)}</td>
-                                    <td className="p-3 text-right font-semibold bg-slate-50">{formatCurrency(matrix.cost.total, currency)}</td>
+                            <tbody>
+                                <tr className="border-b">
+                                    <td className="p-3 align-top">1</td>
+                                    <td className="p-3">
+                                        <div className="font-bold text-sm">Active LED Video Wall Solution</div>
+                                        <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                                            Size: {screenWidthM}m x {screenHeightM}m | Pitch: P{moduleType.pitch} {moduleType.indoor ? 'Indoor' : 'Outdoor'} <br/>
+                                            Brand: {moduleType.brand} | Model: {moduleType.model} <br/>
+                                            Includes: Modules, Cabinets, Controllers, Power Supplies, Cables & Connectors. <br/>
+                                            Scope: Supply, Installation, Testing & Commissioning.
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-center align-top">{screenQty}</td>
+                                    <td className="p-3 text-right font-bold align-top text-sm">{formatCurrency(totalProjectSell, currency)}</td>
                                 </tr>
-                                <tr>
-                                    <td className="p-3 font-semibold bg-slate-50">Margin (₹)</td>
-                                    <td className="p-3 text-right text-teal-600">{formatCurrency(matrix.margin.sqft, currency)}</td>
-                                    <td className="p-3 text-right text-teal-600">{formatCurrency(matrix.margin.unit, currency)}</td>
-                                    <td className="p-3 text-right font-semibold text-teal-600 bg-slate-50">{formatCurrency(matrix.margin.total, currency)}</td>
-                                </tr>
-                                <tr className="text-lg">
-                                    <td className="p-3 font-bold bg-slate-50">Selling Price</td>
-                                    <td className="p-3 text-right font-bold">{formatCurrency(matrix.sell.sqft, currency)}</td>
-                                    <td className="p-3 text-right font-bold">{formatCurrency(matrix.sell.unit, currency)}</td>
-                                    <td className="p-3 text-right font-bold text-teal-700 bg-teal-50">{formatCurrency(matrix.sell.total, currency)}</td>
+                                <tr className="bg-slate-50">
+                                    <td colSpan="3" className="p-3 text-right font-bold uppercase text-sm">Grand Total (Excl. GST)</td>
+                                    <td className="p-3 text-right font-bold text-base">{formatCurrency(totalProjectSell, currency)}</td>
                                 </tr>
                             </tbody>
                         </table>
+                        <p className="text-[10px] text-right mt-1 text-slate-500">* GST @ 18% Extra as applicable</p>
+                    </div>
+
+                    {/* Terms */}
+                    <div className="page-break-inside-avoid">
+                        <h3 className="font-bold text-teal-700 uppercase border-b border-teal-200 mb-2 pb-1">Terms & Conditions</h3>
+                        <div className="grid grid-cols-2 gap-6 text-[10px] text-slate-600">
+                            <ul className="list-disc pl-4 space-y-1">
+                                <li><strong>Price:</strong> Ex-works Mumbai.</li>
+                                <li><strong>Payment:</strong> 50% advance with order, 50% before dispatch.</li>
+                                <li><strong>Delivery:</strong> 3-4 Weeks from date of advance.</li>
+                                <li><strong>Warranty:</strong> 2 Years against manufacturing defects.</li>
+                                <li><strong>Validity:</strong> Quotation valid for 15 days.</li>
+                            </ul>
+                            <ul className="list-disc pl-4 space-y-1">
+                                <li><strong>Client Scope:</strong> Structure & Civil Work.</li>
+                                <li><strong>Power:</strong> stabilized power supply with earthing at site.</li>
+                                <li><strong>Logistics:</strong> Local transport & lifting/unloading at site.</li>
+                                <li><strong>Permissions:</strong> Any required local authority permissions.</li>
+                            </ul>
+                        </div>
+                        
+                        <div className="mt-8 pt-8 border-t border-slate-200 flex justify-between items-end">
+                            <div className="text-center">
+                                <div className="h-12 mb-2"></div>
+                                <p className="text-[10px] font-bold border-t border-slate-400 px-4 pt-1">Client Acceptance</p>
+                            </div>
+                            <div className="text-center">
+                                <div className="h-12 mb-2"></div>
+                                <p className="text-[10px] font-bold border-t border-slate-400 px-4 pt-1">For Admire Sign & Display Pvt. Ltd.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
