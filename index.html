@@ -652,8 +652,9 @@
         };
 
         // 3. Saved Quotes Manager
-        const SavedQuotesManager = ({ user, onLoadQuote, onDeleteQuote }) => {
+        const SavedQuotesManager = ({ user, inventory, transactions, exchangeRate, onLoadQuote, onDeleteQuote }) => {
             const [quotes, setQuotes] = React.useState([]);
+            const [viewQuote, setViewQuote] = React.useState(null);
 
             React.useEffect(() => {
                 if (!user) return;
@@ -666,13 +667,62 @@
             }, [user]);
 
             const handleDelete = async (id) => {
-                if (confirm("Are you sure you want to delete this quote?")) {
+                if(confirm("Are you sure you want to delete this quote?")) {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('quotes').doc(id).delete();
                 }
             };
 
+            const handleView = (quote) => {
+                const result = calculateBOM(quote.calculatorState, inventory, transactions, exchangeRate);
+                if (result) {
+                    setViewQuote({ data: result, client: quote.client, project: quote.project });
+                } else {
+                    alert("Could not calculate quote. Inventory items might be missing.");
+                }
+            };
+
+            const handleDownloadExcel = (quote) => {
+                const result = calculateBOM(quote.calculatorState, inventory, transactions, exchangeRate);
+                if (!result) return alert("Calculation failed.");
+                
+                let csv = `Project,${quote.project}\nClient,${quote.client}\nDate,${new Date().toLocaleDateString()}\n\n`;
+                csv += `Bill of Materials\nComponent,Specification,Qty,Rate,Total\n`;
+                
+                result.detailedItems.forEach(item => {
+                    csv += `"${item.name}","${item.spec}",${item.qty * result.screenQty},${item.unit},${item.total * result.screenQty}\n`;
+                });
+                
+                csv += `\nFinancials\n`;
+                csv += `Total Cost,${result.totalProjectCost}\n`;
+                csv += `Selling Price,${result.totalProjectSell}\n`;
+                csv += `Margin,${result.matrix.margin.total}\n`;
+
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${quote.project}_Quote.csv`;
+                a.click();
+            };
+
             return (
                 <div className="p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                    {viewQuote && (
+                        <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
+                            <div className="bg-white max-w-4xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col">
+                                <div className="p-4 border-b flex justify-between items-center bg-slate-100 rounded-t-lg">
+                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Eye size={20}/> View Saved Quote</h2>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setViewQuote(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded">Close</button>
+                                        <button onClick={() => window.print()} className="px-4 py-2 bg-teal-600 text-white hover:bg-teal-700 rounded flex items-center gap-2"><Printer size={16}/> Print / PDF</button>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-auto p-8 bg-slate-200">
+                                    <PrintLayout data={{...viewQuote.data, clientName: viewQuote.client, projectName: viewQuote.project}} currency='INR' exchangeRate={exchangeRate} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
                             <FileText className="w-5 h-5 text-teal-600 dark:text-teal-400" /> Saved Quotes
@@ -707,9 +757,11 @@
                                         </div>
                                     </div>
                                     <div className="flex gap-2 ml-4">
-                                        <button onClick={() => onLoadQuote(quote, false)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"><Edit size={14} /> Edit</button>
-                                        <button onClick={() => onLoadQuote(quote, true)} className="px-3 py-2 bg-slate-600 text-white rounded text-sm hover:bg-slate-700 flex items-center gap-1"><Copy size={14} /> Clone</button>
-                                        <button onClick={() => handleDelete(quote.id)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                        <button onClick={() => handleView(quote)} className="px-3 py-2 bg-teal-600 text-white rounded text-sm hover:bg-teal-700 flex items-center gap-1"><Eye size={14}/> View</button>
+                                        <button onClick={() => handleDownloadExcel(quote)} className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 flex items-center gap-1"><Download size={14}/> Excel</button>
+                                        <button onClick={() => onLoadQuote(quote, false)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 flex items-center gap-1"><Edit size={14}/> Edit</button>
+                                        <button onClick={() => onLoadQuote(quote, true)} className="px-3 py-2 bg-slate-600 text-white rounded text-sm hover:bg-slate-700 flex items-center gap-1"><Copy size={14}/> Clone</button>
+                                        <button onClick={() => handleDelete(quote.id)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                                     </div>
                                 </div>
                             );
@@ -721,44 +773,68 @@
         };
 
         // 4. Print Layout
-        const PrintLayout = ({ data, currency, exchangeRate }) => {
+        const PrintLayout = ({ data, currency, exchangeRate, date }) => {
             if (!data || !data.moduleType) return null;
             
             const { 
                 clientName, projectName, finalWidth, finalHeight, totalCabinets, 
-                moduleType, cabinetType, screenQty, totalProjectSell, gridCols, gridRows
+                moduleType, cabinetType, processor, screenQty, totalProjectSell, 
+                gridCols, gridRows
             } = data;
 
-            // Calculations for display
-            const cabW = cabinetType.width || 0;
-            const cabH = cabinetType.height || 0;
-            const modW = moduleType.width || 0;
-            const modH = moduleType.height || 0;
-            
-            // Resolution
-            const cabResW = Math.round(cabW / moduleType.pitch);
-            const cabResH = Math.round(cabH / moduleType.pitch);
-            const screenResW = cabResW * gridCols;
-            const screenResH = cabResH * gridRows;
-
-            // Area
+            // 1. Technical Calculations
             const screenWidthM = Number(finalWidth);
             const screenHeightM = Number(finalHeight);
             const areaSqm = screenWidthM * screenHeightM;
-            const areaSqft = areaSqm * 10.764;
+            const areaSqft = areaSqm * 10.7639;
 
-            // Power & Weight
-            const weightPerCab = cabinetType.weight || 0;
-            const totalWeight = weightPerCab * totalCabinets * screenQty;
-            const avgPower = (moduleType.avgPower || 0) * areaSqm * screenQty;
-            const maxPower = (moduleType.maxPower || 0) * areaSqm * screenQty;
+            // Resolution
+            const resW = Math.round((screenWidthM * 1000) / moduleType.pitch);
+            const resH = Math.round((screenHeightM * 1000) / moduleType.pitch);
+
+            // Weight: (Module Kg/m2 * Area) + (Cabinet Kg * Qty)
+            const totalModWeight = (moduleType.weight || 0) * areaSqm;
+            const totalCabWeight = (cabinetType.weight || 0) * totalCabinets;
+            const totalWeight = totalModWeight + totalCabWeight;
+
+            // Power
+            const avgPower = (moduleType.avgPower || 0) * areaSqm; 
+            const maxPower = (moduleType.maxPower || 0) * areaSqm; 
+
+            // 2. Commercial Calculations
+            // Get Total Sell Values from calculator state
+            const comms = data.commercials || { sellProcTotal: 0, sellInstallTotal: 0, sellStructureTotal: 0 };
+            
+            // Per Screen Values
+            const sellTotalPerScreen = totalProjectSell / screenQty;
+            const sellProc = comms.sellProcTotal / screenQty;
+            const sellInstall = comms.sellInstallTotal / screenQty;
+            const sellStructure = comms.sellStructureTotal / screenQty;
+            
+            // LED Panel Base = Total - (Processor + Install + Structure)
+            const sellLEDBase = sellTotalPerScreen - sellProc - sellInstall - sellStructure;
+
+            // Spares = 2% of the LED Base
+            const sellSpares = sellLEDBase * 0.02;
+            
+            // Final LED Panel = LED Base - Spares
+            const sellLEDFinal = sellLEDBase - sellSpares;
+
+            const commercialRows = [
+                { name: "LED Panel", rate: sellLEDFinal },
+                { name: "Processor", rate: sellProc },
+                { name: "Installation", rate: sellInstall },
+                { name: "Spares (2%)", rate: sellSpares },
+                { name: "Structure", rate: sellStructure },
+            ].filter(r => r.rate > 0);
 
             return (
                 <div className="p-8 max-w-[210mm] mx-auto bg-white min-h-screen text-slate-800 print:p-0 print:w-full font-sans text-xs">
                     {/* Header */}
-                    <div className="flex justify-between items-start mb-6 border-b-2 border-teal-600 pb-4">
+                    <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
                         <div>
-                            <h1 className="text-2xl font-bold text-teal-700 uppercase tracking-wide">Admire Sign & Display Pvt. Ltd.</h1>
+                            {/* Logo Placeholder - Text for now */}
+                            <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">ADMIRE SIGN & DISPLAY PVT. LTD.</h1>
                             <div className="text-[10px] text-slate-600 mt-1 space-y-0.5">
                                 <p>102, Priya Industrial Estate 4, K.T. Industrial Estate</p>
                                 <p>Kherpada, Waliv, Vasai East, Mumbai - 401208</p>
@@ -767,130 +843,156 @@
                         </div>
                         <div className="text-right">
                             <h2 className="text-xl font-light text-slate-500">QUOTATION</h2>
-                            <p className="text-sm font-bold text-slate-700">#{generateId()}</p>
-                            <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
+                            <p className="text-sm font-bold text-slate-700">Date: {date || new Date().toLocaleDateString()}</p>
                         </div>
                     </div>
 
-                    {/* Client Info */}
-                    <div className="bg-slate-50 p-3 rounded mb-6 border border-slate-200">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><span className="font-bold text-slate-500 uppercase block">Client</span> <span className="font-semibold">{clientName}</span></div>
-                            <div><span className="font-bold text-slate-500 uppercase block">Project</span> <span className="font-semibold">{projectName}</span></div>
+                    {/* Project & Screen Details */}
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2">Project Details</h3>
+                            <div className="grid grid-cols-3 gap-y-1 text-[11px]">
+                                <span className="font-semibold text-slate-500">Client:</span> <span className="col-span-2 font-bold">{clientName}</span>
+                                <span className="font-semibold text-slate-500">Project:</span> <span className="col-span-2 font-bold">{projectName}</span>
+                                <span className="font-semibold text-slate-500">Screen Size:</span> <span className="col-span-2">{screenWidthM}m (W) x {screenHeightM}m (H)</span>
+                                <span className="font-semibold text-slate-500">Quantity:</span> <span className="col-span-2">{screenQty} Nos</span>
+                            </div>
+
+                            <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mt-4 mb-2">Module & Cabinet</h3>
+                            <div className="grid grid-cols-3 gap-y-1 text-[11px]">
+                                <span className="font-semibold text-slate-500">Module:</span> <span className="col-span-2">{moduleType.brand} P{moduleType.pitch}</span>
+                                <span className="font-semibold text-slate-500">Mod Size:</span> <span className="col-span-2">{moduleType.width} x {moduleType.height} mm</span>
+                                <span className="font-semibold text-slate-500">Lamp:</span> <span className="col-span-2">{moduleType.lampMake || '-'}</span>
+                                <span className="font-semibold text-slate-500">Cabinet:</span> <span className="col-span-2">{cabinetType.material || 'Standard'}</span>
+                                <span className="font-semibold text-slate-500">Cab Size:</span> <span className="col-span-2">{cabinetType.width} x {cabinetType.height} mm</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2">Screen Specifications</h3>
+                            <div className="grid grid-cols-3 gap-y-1 text-[11px]">
+                                <span className="font-semibold text-slate-500">Resolution:</span> <span className="col-span-2">{resW} x {resH} pixels</span>
+                                <span className="font-semibold text-slate-500">Total Area:</span> <span className="col-span-2">{areaSqft.toFixed(2)} Sq.ft / {areaSqm.toFixed(2)} Sq.m</span>
+                                <span className="font-semibold text-slate-500">Total Weight:</span> <span className="col-span-2">{totalWeight.toFixed(1)} kg</span>
+                                <span className="font-semibold text-slate-500">Avg Power:</span> <span className="col-span-2">{(avgPower).toFixed(0)} Watts</span>
+                                <span className="font-semibold text-slate-500">Max Power:</span> <span className="col-span-2">{(maxPower).toFixed(0)} Watts</span>
+                                <span className="font-semibold text-slate-500">Brightness:</span> <span className="col-span-2">{moduleType.brightness} nits</span>
+                                <span className="font-semibold text-slate-500">Refresh Rate:</span> <span className="col-span-2">{moduleType.refreshRate} Hz</span>
+                                <span className="font-semibold text-slate-500">Controller:</span> <span className="col-span-2">{processor ? `${processor.brand} ${processor.model}` : 'Standard'}</span>
+                                <span className="font-semibold text-slate-500">Viewing:</span> <span className="col-span-2">H: {moduleType.viewAngleH}° / V: {moduleType.viewAngleV}°</span>
+                                <span className="font-semibold text-slate-500">IP Rating:</span> <span className="col-span-2">Front: IP{moduleType.ipFront} / Back: IP{moduleType.ipBack}</span>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Technical Specs Table */}
-                    <div className="mb-6">
-                        <h3 className="font-bold text-teal-700 uppercase border-b border-teal-200 mb-2 pb-1">Technical Specifications</h3>
-                        <table className="w-full border border-slate-300">
-                            <tbody>
-                                {/* Module Section */}
-                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">MODULE PARAMETERS</td></tr>
-                                <tr>
-                                    <td className="p-1 border w-1/4 font-medium">Pixel Pitch</td><td className="p-1 border w-1/4">P{moduleType.pitch}</td>
-                                    <td className="p-1 border w-1/4 font-medium">LED Config</td><td className="p-1 border w-1/4">{moduleType.ledType || '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Module Size</td><td className="p-1 border">{modW} x {modH} mm</td>
-                                    <td className="p-1 border font-medium">Brightness</td><td className="p-1 border">{moduleType.brightness} nits</td>
-                                </tr>
-
-                                {/* Cabinet Section */}
-                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">CABINET PARAMETERS</td></tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Cabinet Size</td><td className="p-1 border">{cabW} x {cabH} mm</td>
-                                    <td className="p-1 border font-medium">Resolution</td><td className="p-1 border">{cabResW} x {cabResH} px</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Material</td><td className="p-1 border">{cabinetType.material || '-'}</td>
-                                    <td className="p-1 border font-medium">Weight/Cab</td><td className="p-1 border">{weightPerCab} kg</td>
-                                </tr>
-
-                                {/* Screen Section */}
-                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">SCREEN PARAMETERS</td></tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Total Dimension (m)</td><td className="p-1 border">{screenWidthM} (W) x {screenHeightM} (H)</td>
-                                    <td className="p-1 border font-medium">Total Area</td><td className="p-1 border">{areaSqm.toFixed(2)} Sq.m / {areaSqft.toFixed(2)} Sq.ft</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Total Resolution</td><td className="p-1 border">{screenResW} x {screenResH} px</td>
-                                    <td className="p-1 border font-medium">Aspect Ratio</td><td className="p-1 border">{(screenResW/screenResH).toFixed(2)}:1</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Est. Total Weight</td><td className="p-1 border">{totalWeight.toFixed(1)} kg</td>
-                                    <td className="p-1 border font-medium">Max Power</td><td className="p-1 border">{maxPower.toFixed(0)} W</td>
-                                </tr>
-                                
-                                {/* Other Section */}
-                                <tr className="bg-slate-100 font-bold"><td colSpan="4" className="p-1 border text-center text-slate-600">SYSTEM SPECIFICATIONS</td></tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">Refresh Rate</td><td className="p-1 border">{moduleType.refreshRate || '-'} Hz</td>
-                                    <td className="p-1 border font-medium">Viewing Angle</td><td className="p-1 border">{moduleType.viewAngleH || '-'}H / {moduleType.viewAngleV || '-'}V</td>
-                                </tr>
-                                <tr>
-                                    <td className="p-1 border font-medium">IP Rating</td><td className="p-1 border">Front IP{moduleType.ipFront || '-'} / Back IP{moduleType.ipBack || '-'}</td>
-                                    <td className="p-1 border font-medium">Input Voltage</td><td className="p-1 border">AC 110V - 240V</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    {/* Visualizer */}
+                    <div className="mb-8 border rounded-lg p-2 bg-slate-50 break-inside-avoid">
+                        <ScreenVisualizer cols={gridCols} rows={gridRows} module={moduleType} cabinet={cabinetType} unit="m" />
                     </div>
 
                     {/* Commercial Quote */}
-                    <div className="mb-6">
-                        <h3 className="font-bold text-teal-700 uppercase border-b border-teal-200 mb-2 pb-1">Commercial Proposal</h3>
-                        <table className="w-full border-collapse">
+                    <div className="mb-6 break-inside-avoid">
+                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2 pb-1">Commercial Proposal</h3>
+                        <table className="w-full border-collapse border border-slate-300 text-[11px]">
                             <thead className="bg-slate-800 text-white">
                                 <tr>
-                                    <th className="p-2 text-left w-12">#</th>
-                                    <th className="p-2 text-left">Description</th>
-                                    <th className="p-2 text-center w-20">Qty</th>
-                                    <th className="p-2 text-right w-32">Total Amount</th>
+                                    <th className="p-2 border border-slate-600 text-left w-12">#</th>
+                                    <th className="p-2 border border-slate-600 text-left">Item Description</th>
+                                    <th className="p-2 border border-slate-600 text-right w-32">Amount (1 Screen)</th>
+                                    <th className="p-2 border border-slate-600 text-right w-32">Amount ({screenQty} Screens)</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr className="border-b">
-                                    <td className="p-3 align-top">1</td>
-                                    <td className="p-3">
-                                        <div className="font-bold text-sm">Active LED Video Wall Solution</div>
-                                        <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                                            Size: {screenWidthM}m x {screenHeightM}m | Pitch: P{moduleType.pitch} {moduleType.indoor ? 'Indoor' : 'Outdoor'} <br/>
-                                            Brand: {moduleType.brand} | Model: {moduleType.model} <br/>
-                                            Includes: Modules, Cabinets, Controllers, Power Supplies, Cables & Connectors. <br/>
-                                            Scope: Supply, Installation, Testing & Commissioning.
-                                        </div>
-                                    </td>
-                                    <td className="p-3 text-center align-top">{screenQty}</td>
-                                    <td className="p-3 text-right font-bold align-top text-sm">{formatCurrency(totalProjectSell, currency)}</td>
-                                </tr>
-                                <tr className="bg-slate-50">
-                                    <td colSpan="3" className="p-3 text-right font-bold uppercase text-sm">Grand Total (Excl. GST)</td>
-                                    <td className="p-3 text-right font-bold text-base">{formatCurrency(totalProjectSell, currency)}</td>
+                                {commercialRows.map((row, i) => (
+                                    <tr key={i}>
+                                        <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
+                                        <td className="p-2 border border-slate-300 font-bold">{row.name}</td>
+                                        <td className="p-2 border border-slate-300 text-right">{formatCurrency(row.rate, currency)}</td>
+                                        <td className="p-2 border border-slate-300 text-right font-bold">{formatCurrency(row.rate * screenQty, currency)}</td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-slate-100">
+                                    <td colSpan="3" className="p-2 border border-slate-300 text-right font-bold uppercase">Grand Total (Excl. GST)</td>
+                                    <td className="p-2 border border-slate-300 text-right font-bold text-sm">{formatCurrency(totalProjectSell, currency)}</td>
                                 </tr>
                             </tbody>
                         </table>
-                        <p className="text-[10px] text-right mt-1 text-slate-500">* GST @ 18% Extra as applicable</p>
                     </div>
 
-                    {/* Terms */}
-                    <div className="page-break-inside-avoid">
-                        <h3 className="font-bold text-teal-700 uppercase border-b border-teal-200 mb-2 pb-1">Terms & Conditions</h3>
-                        <div className="grid grid-cols-2 gap-6 text-[10px] text-slate-600">
-                            <ul className="list-disc pl-4 space-y-1">
-                                <li><strong>Price:</strong> Ex-works Mumbai.</li>
-                                <li><strong>Payment:</strong> 50% advance with order, 50% before dispatch.</li>
-                                <li><strong>Delivery:</strong> 3-4 Weeks from date of advance.</li>
-                                <li><strong>Warranty:</strong> 2 Years against manufacturing defects.</li>
-                                <li><strong>Validity:</strong> Quotation valid for 15 days.</li>
-                            </ul>
-                            <ul className="list-disc pl-4 space-y-1">
-                                <li><strong>Client Scope:</strong> Structure & Civil Work.</li>
-                                <li><strong>Power:</strong> stabilized power supply with earthing at site.</li>
-                                <li><strong>Logistics:</strong> Local transport & lifting/unloading at site.</li>
-                                <li><strong>Permissions:</strong> Any required local authority permissions.</li>
-                            </ul>
-                        </div>
+                    {/* Terms & Conditions */}
+                    <div className="break-inside-avoid">
+                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2 pb-1">Terms & Conditions</h3>
                         
+                        <div className="text-[10px] text-slate-600 space-y-3">
+                            <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-4">
+                                <div className="font-bold text-slate-800">PRICE</div>
+                                <div>{data.terms?.price || 'Ex-works Mumbai'}</div>
+
+                                <div className="font-bold text-slate-800">PAYMENT</div>
+                                <div>
+                                    {(data.terms?.payment || []).map((p, i) => (
+                                        <span key={i}>{p.percent}% {p.name}{i < data.terms.payment.length - 1 ? ', ' : '.'} </span>
+                                    ))}
+                                </div>
+
+                                <div className="font-bold text-slate-800">DELIVERY</div>
+                                <div>Within {data.terms?.deliveryWeeks} weeks from the date of receipt of advance payment with order.</div>
+
+                                <div className="font-bold text-slate-800">GST</div>
+                                <div>Extra as applicable (currently 18%)</div>
+
+                                <div className="font-bold text-slate-800">WARRANTY</div>
+                                <div className="text-justify leading-snug">
+                                    Against any manufacturing defect. Offsite support for troubleshooting. Client can sign up for Admire’s excellent AMC services for on-site support. 
+                                    Serious fault will be attended to by our technical team within 48-72 hours upon receipt of written complaints with pictures/videos of the fault. 
+                                    1% Extra spares includes Modules, Power Supply, Receiver Card (if there are over 100 cabinets), Flat cables, 5V connectors, Power and Data Cable. 
+                                    Any damage to the screen due to force majure, natural disasters, electricity surge, earthing, accident, etc is not covered under the warranty. 
+                                    Power supplies damage due to power fluctuation will not be covered under warranty. Power supply will be under the direct warranty of the OEM supplier. 
+                                    If the repair requires additional components then these will be charged extra. Brightness control meter, Video Processor & Timer can be supplied at extra cost. 
+                                    Maintenance team visit in six months during warranty period.
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mt-4 mb-2 pb-1">Client's Scope</h3>
+                        <div className="text-[10px] text-slate-600 grid gap-y-2">
+                            <div>
+                                <span className="font-bold text-slate-800 block">Structure:</span>
+                                Foundation & Structure. Structural stability certificate from a consultant. For wall mounted outdoor screen, Client to ensure strong and solid brick wall, RCC beams and column base. 
+                                For front access indoor screen, Client to ensure a strong base. Indoor Structures cannot be mounted on ACP Sheets, Gypsum boards etc. 
+                                Scaffolding, Aluminium composite panelling if required. Personnel for troubleshooting training during the screen installation. Helpers for loading, unloading and installing the display at site.
+                            </div>
+                            <div>
+                                <span className="font-bold text-slate-800 block">Electricity:</span>
+                                Electricity 3 phase electric power near the site, not more than 5m from the site, before the commencement of work. Electrical distribution board within 5m from the screen. 
+                                Conduited electrical cable. 4mm 2 core armored cable or 4mm 3 core cables, 32 ampere MCB, 1 switch board with 2 sockets. 
+                                Good quality Stabiliser and timers. 1 Certified electrical engineer for all connections from power Main to the unit. Ventilation machineries such as Air Conditioners or Fans.
+                            </div>
+                            <div>
+                                <span className="font-bold text-slate-800 block">Internet:</span>
+                                CAT 6 or Optic Fiber Data cable and its terminations. Data points near the screen. Space with power sockets for Video wall Controllers. 
+                                Data source/AV room within 80 meters of the screen. Connections to be availed through CAT 6 cables duly terminated with RJ45. 
+                                If the length is farther then Fiber optic converter will be required. Fiber optic converters, if required, will be charged extra. 
+                                In case the fiber optic converter is required, single mode Fiber optic cable is to be provided by client from source point to the display, terminated as per specs with Patch Chords from the splicing unit to connect to screen.
+                            </div>
+                            <div>
+                                <span className="font-bold text-slate-800 block">Software:</span>
+                                3rd party Software for Content upload on screen will be provided by the controller card supplier. Admire cannot provide regular updates and application stability.
+                            </div>
+                            <div>
+                                <span className="font-bold text-slate-800 block">Permissions:</span>
+                                All permissions such as PTW, work permits & gate passes for workers, engineers and executives.
+                            </div>
+                            <div>
+                                <span className="font-bold text-slate-800 block">Computer:</span>
+                                As per specification, to be arranged by client.
+                            </div>
+                            <div>
+                                <span className="font-bold text-slate-800 block">Validity:</span>
+                                30 days.
+                            </div>
+                        </div>
+
                         <div className="mt-8 pt-8 border-t border-slate-200 flex justify-between items-end">
                             <div className="text-center">
                                 <div className="h-12 mb-2"></div>
@@ -975,7 +1077,275 @@
                 </div>
             </div>
         );
+// Helper: Shared Calculation Logic
+        const calculateBOM = (state, inventory, transactions, exchangeRate) => {
+            const {
+                screenQty, targetWidth, targetHeight, unit, 
+                selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, 
+                selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, 
+                sizingMode, readyId, margin, extras, overrides, extraComponents,
+                pricingMode, targetSellPrice, commercials, terms
+            } = state;
 
+            const getPriceInInr = (item) => {
+                if (!item) return 0;
+                const basePrice = Number(item.price || 0);
+                const carriage = Number(item.carriage || 0);
+                const totalBase = basePrice + carriage; 
+                if (item.currency === 'USD') return totalBase * exchangeRate;
+                return totalBase; 
+            };
+
+            let module, cabinet, card, psu, proc;
+            let totalModules = 0;
+
+            if (assemblyMode === 'assembled') {
+                module = inventory.find(i => i.id === selectedModuleId);
+                cabinet = inventory.find(i => i.id === selectedCabinetId);
+                card = inventory.find(i => i.id === selectedCardId);
+                psu = inventory.find(i => i.id === selectedPSUId);
+                proc = inventory.find(i => i.id === selectedProcId);
+                if (!module || !cabinet) return null;
+            } else {
+                const readyUnit = inventory.find(i => i.id === readyId);
+                proc = inventory.find(i => i.id === selectedProcId);
+                if (!readyUnit) return null;
+                module = readyUnit; 
+                cabinet = readyUnit;
+            }
+
+            // Dimensions
+            const w_mm = unit === 'm' ? targetWidth * 1000 : targetWidth * 304.8;
+            const h_mm = unit === 'm' ? targetHeight * 1000 : targetHeight * 304.8;
+
+            // Sizing Logic
+            const rawCols = w_mm / cabinet.width;
+            const rawRows = h_mm / cabinet.height;
+            let cols, rows;
+            if (sizingMode === 'up') { cols = Math.ceil(rawCols); rows = Math.ceil(rawRows); }
+            else if (sizingMode === 'down') { cols = Math.max(1, Math.floor(rawCols)); rows = Math.max(1, Math.floor(rawRows)); }
+            else { cols = Math.max(1, Math.round(rawCols)); rows = Math.max(1, Math.round(rawRows)); }
+
+            const finalW_mm = cols * cabinet.width;
+            const finalH_mm = rows * cabinet.height;
+            const totalCabinetsPerScreen = cols * rows;
+
+            // Area Calculation
+            const areaSqFt = (finalW_mm * finalH_mm) / 92903; 
+
+            // --- BUILD ITEM LIST ---
+            let rawItems = [];
+            if (assemblyMode === 'assembled') {
+                const modsPerCab = (Math.floor(cabinet.width / module.width) * Math.floor(cabinet.height / module.height));
+                totalModules = totalCabinetsPerScreen * modsPerCab;
+                rawItems = [
+                    { id: 'modules', inventoryId: selectedModuleId, name: 'Modules', spec: `${module.brand} ${module.model}`, qty: totalModules, unit: getPriceInInr(module), total: totalModules * getPriceInInr(module), type: 'led' },
+                    { id: 'cabinets', inventoryId: selectedCabinetId, name: 'Cabinets', spec: `${cabinet.brand} ${cabinet.model}`, qty: totalCabinetsPerScreen, unit: getPriceInInr(cabinet), total: totalCabinetsPerScreen * getPriceInInr(cabinet), type: 'led' },
+                    { id: 'cards', inventoryId: selectedCardId, name: 'Cards', spec: card ? card.brand : '-', qty: totalCabinetsPerScreen, unit: getPriceInInr(card), total: totalCabinetsPerScreen * getPriceInInr(card), type: 'led' },
+                    { id: 'psu', inventoryId: selectedPSUId, name: 'SMPS', spec: psu ? psu.brand : '-', qty: totalCabinetsPerScreen, unit: getPriceInInr(psu), total: totalCabinetsPerScreen * getPriceInInr(psu), type: 'led' },
+                ];
+            } else {
+                rawItems = [
+                    { id: 'ready', inventoryId: readyId, name: 'LED Panels (Ready)', spec: `${cabinet.brand} ${cabinet.model}`, qty: totalCabinetsPerScreen, unit: getPriceInInr(cabinet), total: totalCabinetsPerScreen * getPriceInInr(cabinet), type: 'led' }
+                ];
+                totalModules = totalCabinetsPerScreen;
+            }
+            if (proc) {
+                // Processor is NOT type 'led', it is 'service' or 'other'
+                rawItems.push({ id: 'processor', inventoryId: selectedProcId, name: 'Processor', spec: proc.brand, qty: 1, unit: getPriceInInr(proc), total: getPriceInInr(proc), type: 'service' });
+            }
+
+            // Add Extra Components
+            if (extraComponents && extraComponents.length > 0) {
+                extraComponents.forEach(extra => {
+                    const invItem = inventory.find(i => i.id === extra.componentId);
+                    if (invItem) {
+                        const extraQty = extra.type === 'cabinet' ? (extra.qty * totalCabinetsPerScreen) : extra.qty;
+                        rawItems.push({
+                            id: extra.id,
+                            inventoryId: extra.componentId,
+                            name: `Extra: ${invItem.type}`,
+                            spec: `${invItem.brand} ${invItem.model}`,
+                            qty: extraQty,
+                            unit: getPriceInInr(invItem),
+                            total: extraQty * getPriceInInr(invItem),
+                            type: invItem.type === 'processor' ? 'service' : 'led' // Categorize extra components
+                        });
+                    }
+                });
+            }
+
+            // --- APPLY OVERRIDES ---
+            const finalItems = rawItems.map(item => {
+                if (overrides && overrides[item.id]) {
+                    const ov = overrides[item.id];
+                    const finalQty = ov.qty !== undefined && ov.qty !== '' ? Number(ov.qty) : item.qty;
+                    const finalRate = ov.rate !== undefined && ov.rate !== '' ? Number(ov.rate) : item.unit;
+                    return { ...item, qty: finalQty, unit: finalRate, total: finalQty * finalRate, isOverridden: true };
+                }
+                return item;
+            });
+
+            // --- SPLIT COSTS: LED vs SERVICES ---
+            const ledItemsTotal = finalItems.filter(i => i.type === 'led').reduce((acc, i) => acc + i.total, 0);
+            const serviceItemsTotal = finalItems.filter(i => i.type !== 'led').reduce((acc, i) => acc + i.total, 0);
+
+            // Extras: Split logic
+            const calculatedExtras = {};
+            let ledOpsCost = 0;
+            let serviceOpsCost = 0;
+
+            if(extras) {
+                Object.keys(extras).forEach(key => {
+                    const item = extras[key];
+                    let val = 0;
+                    
+                    // NEW: Sync Cost Unit with Sell Unit
+                    if (key === 'install') {
+                         const mode = commercials?.installation?.unit || 'sqft';
+                         const rate = Number(item.val); // Input is now treated as Rate based on mode
+                         if (mode === 'sqft') val = rate * areaSqFt; // Rate * Area
+                         else val = rate; // Rate is Flat Amount
+                    } 
+                    else if (key === 'structure') {
+                         const mode = commercials?.structure?.unit || 'sqft';
+                         const rate = Number(item.val);
+                         if (mode === 'sqft') val = rate * areaSqFt;
+                         else val = rate;
+                    }
+                    // Standard Logic for other overheads
+                    else {
+                        const baseForPct = ledItemsTotal; 
+                        if (item.type === 'pct') val = baseForPct * (item.val / 100);
+                        else val = Number(item.val);
+                    }
+
+                    calculatedExtras[key] = val;
+
+                    if (key === 'structure' || key === 'install') {
+                        serviceOpsCost += val;
+                    } else {
+                        ledOpsCost += val;
+                    }
+                });
+            }
+            
+            // COST TOTALS (Per Screen)
+            const costLEDPerScreen = ledItemsTotal + ledOpsCost;
+            const costServicesPerScreen = serviceItemsTotal + serviceOpsCost;
+            const costPerScreenTotal = costLEDPerScreen + costServicesPerScreen;
+
+            const totalProjectCost = costPerScreenTotal * screenQty;
+
+            // --- COMMERCIALS / SELL PRICE LOGIC ---
+            
+            // 1. Calculate Service Sell Prices (Fixed Inputs)
+            const comms = commercials || { processor: {val:0}, installation: {val:0}, structure: {val:0} };
+            
+            // Processor SP
+            let sellProcTotal = 0;
+            if (comms.processor.unit === 'unit') {
+                const procItem = finalItems.find(i => i.id === 'processor'); // Find overridden qty if exists
+                const procQty = procItem ? procItem.qty : 1; 
+                sellProcTotal = Number(comms.processor.val) * procQty * screenQty;
+            } else { // per screen
+                sellProcTotal = Number(comms.processor.val) * screenQty;
+            }
+
+            // Installation SP
+            let sellInstallTotal = 0;
+            if (comms.installation.unit === 'sqft') {
+                sellInstallTotal = Number(comms.installation.val) * areaSqFt * screenQty;
+            } else { // per screen
+                sellInstallTotal = Number(comms.installation.val) * screenQty;
+            }
+
+            // Structure SP
+            let sellStructureTotal = 0;
+            if (comms.structure.unit === 'sqft') {
+                sellStructureTotal = Number(comms.structure.val) * areaSqFt * screenQty;
+            } else { // per screen
+                sellStructureTotal = Number(comms.structure.val) * screenQty;
+            }
+            
+            const totalServiceSell = sellProcTotal + sellInstallTotal + sellStructureTotal;
+            const sellServicesPerScreen = totalServiceSell / screenQty;
+
+            // 2. Calculate LED Panel Sell Price (The Variable/Target)
+            let sellLEDPerScreen = 0;
+            let effectiveMargin = margin;
+            const mode = pricingMode || 'margin';
+
+            if (mode === 'margin') {
+                // Formula: Cost / (1 - Margin%) -> GROSS MARGIN Logic
+                // If user enters 30%, they expect 30% profit on the sell price.
+                // However, standard markup is Cost * (1 + Margin%).
+                // Let's stick to the industry standard requested: "Cost + Margin%" usually implies Markup in simple tools,
+                // BUT the user explicitly compared to Excel which used Gross Margin logic (Profit/Sell).
+                // Let's use Markup (Cost * 1.X) as it's safer/standard for simple calculators unless 'Gross Margin' is explicitly requested.
+                // Re-reading prompt: "User input of Margin %... should only be for the LED Panel".
+                // I will use simple Markup for now: Cost * (1 + M/100). 
+                sellLEDPerScreen = costLEDPerScreen * (1 + margin/100);
+            } else {
+                const target = Number(targetSellPrice || 0);
+                if (mode === 'screen') sellLEDPerScreen = target;
+                else if (mode === 'sqft') sellLEDPerScreen = target * areaSqFt;
+                else if (mode === 'sqm') sellLEDPerScreen = target * (areaSqFt / 10.7639);
+                
+                // Reverse Calculate Effective Margin for LED Panel
+                if (costLEDPerScreen > 0) effectiveMargin = ((sellLEDPerScreen - costLEDPerScreen) / costLEDPerScreen) * 100;
+                else effectiveMargin = 0;
+            }
+
+            const totalLEDSell = sellLEDPerScreen * screenQty;
+            
+            // --- FINAL TOTALS ---
+            const totalProjectSell = totalLEDSell + totalServiceSell;
+            const totalMargin = totalProjectSell - totalProjectCost;
+
+            return {
+                gridCols: cols, gridRows: rows,
+                finalWidth: (finalW_mm / 1000).toFixed(2), finalHeight: (finalH_mm / 1000).toFixed(2),
+                totalCabinets: totalCabinetsPerScreen, moduleType: module, cabinetType: cabinet, processor: proc,
+                breakdown: { 
+                    qtyModules: totalModules, 
+                    ledOps: ledOpsCost,
+                    serviceOps: serviceOpsCost 
+                },
+                detailedItems: finalItems, calculatedExtras, 
+                
+                // Costs
+                costLEDPerScreen,
+                costServicesPerScreen,
+                costPerScreen: costPerScreenTotal,
+                totalProjectCost,
+                
+                // Sales
+                finalPrice: totalProjectSell, 
+                totalProjectSell, 
+                
+                assemblyMode, screenQty, 
+                commercials: { sellProcTotal, sellInstallTotal, sellStructureTotal },
+                terms: terms || { price: 'Ex-works Mumbai', deliveryWeeks: 10, payment: [] },
+                
+                // Matrix for UI
+                matrix: {
+                    cost: { sqft: costPerScreenTotal / areaSqFt, unit: costPerScreenTotal, total: totalProjectCost },
+                    margin: { sqft: (totalMargin/screenQty) / areaSqFt, unit: (totalMargin/screenQty), total: totalMargin },
+                    sell: { sqft: (totalProjectSell/screenQty) / areaSqFt, unit: (totalProjectSell/screenQty), total: totalProjectSell },
+                    
+                    // Specific LED Panel Metrics (for the Calculator UI focus)
+                    led: {
+                        cost: costLEDPerScreen,
+                        sell: sellLEDPerScreen,
+                        margin: sellLEDPerScreen - costLEDPerScreen,
+                        marginPct: effectiveMargin
+                    },
+                    
+                    sqft: { perScreen: areaSqFt, total: areaSqFt * screenQty }
+                }
+            };
+        };
         // 5. Main Calculator (Stateless - Props Only)
         const QuoteCalculator = ({ user, inventory, transactions, state, setState, exchangeRate, setExchangeRate, onSaveQuote }) => {
             const {
@@ -1023,6 +1393,20 @@
                         selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
                         margin: 30, pricingMode: 'margin', targetSellPrice: 0,
                         extraComponents: [],
+                        commercials: { 
+                            processor: {val: 0, unit: 'screen'}, 
+                            installation: {val: 0, unit: 'sqft'}, 
+                            structure: {val: 0, unit: 'sqft'} 
+                        },
+                        terms: {
+                            price: 'Ex-works Mumbai',
+                            deliveryWeeks: 10,
+                            payment: [
+                                { name: "Advance with order", percent: 60 },
+                                { name: "Before dispatch", percent: 30 },
+                                { name: "After installation", percent: 10 }
+                            ]
+                        },
                         extras: {
                             assembly: { val: 0, type: 'abs' }, 
                             hardware: { val: 0, type: 'abs' }, 
@@ -1061,155 +1445,9 @@
 
             // --- REAL-TIME CALCULATION ---
             React.useEffect(() => {
-                const getPriceInInr = (item) => {
-                    if (!item) return 0;
-                    const basePrice = Number(item.price || 0);
-                    const carriage = Number(item.carriage || 0);
-                    const totalBase = basePrice + carriage;
-                    if (item.currency === 'USD') return totalBase * exchangeRate;
-                    return totalBase;
-                };
-
-                let module, cabinet, card, psu, proc;
-                let totalModules = 0;
-
-                if (assemblyMode === 'assembled') {
-                    module = inventory.find(i => i.id === selectedModuleId);
-                    cabinet = inventory.find(i => i.id === selectedCabinetId);
-                    card = inventory.find(i => i.id === selectedCardId);
-                    psu = inventory.find(i => i.id === selectedPSUId);
-                    proc = inventory.find(i => i.id === selectedProcId);
-                    if (!module || !cabinet) { setCalculation(null); return; }
-                } else {
-                    const readyUnit = inventory.find(i => i.id === readyId);
-                    proc = inventory.find(i => i.id === selectedProcId);
-                    if (!readyUnit) { setCalculation(null); return; }
-                    module = readyUnit;
-                    cabinet = readyUnit;
-                }
-
-                // Dimensions
-                const w_mm = unit === 'm' ? targetWidth * 1000 : targetWidth * 304.8;
-                const h_mm = unit === 'm' ? targetHeight * 1000 : targetHeight * 304.8;
-
-                // Sizing Logic
-                const rawCols = w_mm / cabinet.width;
-                const rawRows = h_mm / cabinet.height;
-                let cols, rows;
-                if (sizingMode === 'up') { cols = Math.ceil(rawCols); rows = Math.ceil(rawRows); }
-                else if (sizingMode === 'down') { cols = Math.max(1, Math.floor(rawCols)); rows = Math.max(1, Math.floor(rawRows)); }
-                else { cols = Math.max(1, Math.round(rawCols)); rows = Math.max(1, Math.round(rawRows)); }
-
-                const finalW_mm = cols * cabinet.width;
-                const finalH_mm = rows * cabinet.height;
-                const totalCabinetsPerScreen = cols * rows;
-
-                // Area Calculation
-                const areaSqFt = (finalW_mm * finalH_mm) / 92903;
-
-                // --- BUILD ITEM LIST ---
-                let rawItems = [];
-                if (assemblyMode === 'assembled') {
-                    const modsPerCab = (Math.floor(cabinet.width / module.width) * Math.floor(cabinet.height / module.height));
-                    totalModules = totalCabinetsPerScreen * modsPerCab;
-                    rawItems = [
-                        { id: 'modules', inventoryId: selectedModuleId, name: 'Modules', spec: `${module.brand} ${module.model}`, qty: totalModules, unit: getPriceInInr(module), total: totalModules * getPriceInInr(module) },
-                        { id: 'cabinets', inventoryId: selectedCabinetId, name: 'Cabinets', spec: `${cabinet.brand} ${cabinet.model}`, qty: totalCabinetsPerScreen, unit: getPriceInInr(cabinet), total: totalCabinetsPerScreen * getPriceInInr(cabinet) },
-                        { id: 'cards', inventoryId: selectedCardId, name: 'Cards', spec: card ? card.brand : '-', qty: totalCabinetsPerScreen, unit: getPriceInInr(card), total: totalCabinetsPerScreen * getPriceInInr(card) },
-                        { id: 'psu', inventoryId: selectedPSUId, name: 'SMPS', spec: psu ? psu.brand : '-', qty: totalCabinetsPerScreen, unit: getPriceInInr(psu), total: totalCabinetsPerScreen * getPriceInInr(psu) },
-                    ];
-                } else {
-                    rawItems = [
-                        { id: 'ready', inventoryId: readyId, name: 'LED Panels (Ready)', spec: `${cabinet.brand} ${cabinet.model}`, qty: totalCabinetsPerScreen, unit: getPriceInInr(cabinet), total: totalCabinetsPerScreen * getPriceInInr(cabinet) }
-                    ];
-                    totalModules = totalCabinetsPerScreen;
-                }
-                if (proc) {
-                    rawItems.push({ id: 'processor', inventoryId: selectedProcId, name: 'Processor', spec: proc.brand, qty: 1, unit: getPriceInInr(proc), total: getPriceInInr(proc) });
-                }
-
-                // Add Extra Components
-                if (state.extraComponents && state.extraComponents.length > 0) {
-                    state.extraComponents.forEach(extra => {
-                        const invItem = inventory.find(i => i.id === extra.componentId);
-                        if (invItem) {
-                            const extraQty = extra.type === 'cabinet' ? (extra.qty * totalCabinetsPerScreen) : extra.qty;
-                            rawItems.push({
-                                id: extra.id,
-                                inventoryId: extra.componentId,
-                                name: `Extra: ${invItem.type}`,
-                                spec: `${invItem.brand} ${invItem.model}`,
-                                qty: extraQty,
-                                unit: getPriceInInr(invItem),
-                                total: extraQty * getPriceInInr(invItem)
-                            });
-                        }
-                    });
-                }
-
-                // --- APPLY OVERRIDES ---
-                const finalItems = rawItems.map(item => {
-                    if (overrides[item.id]) {
-                        const ov = overrides[item.id];
-                        const finalQty = ov.qty !== undefined && ov.qty !== '' ? Number(ov.qty) : item.qty;
-                        const finalRate = ov.rate !== undefined && ov.rate !== '' ? Number(ov.rate) : item.unit;
-                        return { ...item, qty: finalQty, unit: finalRate, total: finalQty * finalRate, isOverridden: true };
-                    }
-                    return item;
-                });
-
-                const costPerScreenBase = finalItems.reduce((acc, item) => acc + item.total, 0);
-
-                // Extras
-                const calculatedExtras = {};
-                Object.keys(extras).forEach(key => {
-                    const item = extras[key];
-                    if (item.type === 'pct') calculatedExtras[key] = costPerScreenBase * (item.val / 100);
-                    else calculatedExtras[key] = Number(item.val);
-                });
-                const totalExtrasPerScreen = Object.values(calculatedExtras).reduce((a, b) => a + b, 0);
-
-                // Totals
-                const costPerScreen = costPerScreenBase + totalExtrasPerScreen;
-                const totalProjectCost = costPerScreen * screenQty;
-                
-                let sellPerScreen = 0;
-                let effectiveMargin = margin;
-                const mode = state.pricingMode || 'margin';
-                
-                if (mode === 'margin') {
-                    sellPerScreen = costPerScreen * (1 + margin/100);
-                } else {
-                    const target = Number(state.targetSellPrice || 0);
-                    if (mode === 'screen') sellPerScreen = target;
-                    else if (mode === 'sqft') sellPerScreen = target * areaSqFt;
-                    else if (mode === 'sqm') sellPerScreen = target * (areaSqFt / 10.7639);
-                    
-                    if (costPerScreen > 0) effectiveMargin = ((sellPerScreen - costPerScreen) / costPerScreen) * 100;
-                    else effectiveMargin = 0;
-                }
-
-                const totalProjectSell = sellPerScreen * screenQty;
-                const marginPerScreen = sellPerScreen - costPerScreen;
-                const marginTotal = totalProjectSell - totalProjectCost;
-
-                const matrix = {
-                    cost: { sqft: costPerScreen / areaSqFt, unit: costPerScreen, total: totalProjectCost },
-                    margin: { sqft: marginPerScreen / areaSqFt, unit: marginPerScreen, total: marginTotal },
-                    sell: { sqft: sellPerScreen / areaSqFt, unit: sellPerScreen, total: totalProjectSell },
-                    sqft: { perScreen: areaSqFt, total: areaSqFt * screenQty }
-                };
-
-                setCalculation({
-                    gridCols: cols, gridRows: rows,
-                    finalWidth: (finalW_mm / 1000).toFixed(2), finalHeight: (finalH_mm / 1000).toFixed(2),
-                    totalCabinets: totalCabinetsPerScreen, moduleType: module, cabinetType: cabinet,
-                    breakdown: { qtyModules: totalModules, extras: totalExtrasPerScreen },
-                    detailedItems: finalItems, calculatedExtras, costPerScreen, totalProjectCost,
-                    finalPrice: totalProjectSell, totalProjectSell, assemblyMode, screenQty, matrix
-                });
-
-            }, [targetWidth, targetHeight, unit, selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, readyId, sizingMode, margin, extras, inventory, exchangeRate, screenQty, overrides, state.pricingMode, state.targetSellPrice, state.extraComponents]);
+                const result = calculateBOM(state, inventory, transactions, exchangeRate);
+                setCalculation(result);
+}, [targetWidth, targetHeight, unit, selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, readyId, sizingMode, margin, extras, inventory, exchangeRate, screenQty, overrides, state.pricingMode, state.targetSellPrice, state.extraComponents, state.commercials, state.terms]);
 
              return (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
@@ -1481,182 +1719,367 @@
                         </div>
                     </div>
 
-                    {/* Middle: Extras & Costs */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                            <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Additional Costs (Per Screen)</h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <ExtraInput label="Structure Cost" fieldKey="structure" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Hardware & Cables" fieldKey="hardware" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Assembly Labour" fieldKey="assembly" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Packaging" fieldKey="packaging" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Transport" fieldKey="transport" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Install Labour" fieldKey="install" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Wastage / Buffer" fieldKey="wastage" extras={extras} updateExtra={updateExtra} currency='INR' />
-                                <ExtraInput label="Operational Overheads" fieldKey="overheads" extras={extras} updateExtra={updateExtra} currency='INR' />
-                            </div>
+{/* Middle: Extras & Costs */}
+<div className="lg:col-span-4 space-y-6">
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Commercials & Overheads
+        </h3>
 
-                            {calculation && (
-                                <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
-                                    <div className="mb-4 overflow-x-auto">
-                                        <table className="w-full text-xs text-slate-600 dark:text-slate-300">
-                                            <thead>
-                                                <tr className="border-b border-slate-200 dark:border-slate-600">
-                                                    <th className="text-left pb-1">Item</th>
-                                                    <th className="text-right pb-1">Rate</th>
-                                                    <th className="text-center pb-1 border-l border-slate-200 dark:border-slate-700 px-1">Qty(1)</th>
-                                                    <th className="text-right pb-1">Amt(1)</th>
-                                                    <th className="text-center pb-1 border-l border-slate-200 dark:border-slate-700 px-1 font-bold">Qty({screenQty})</th>
-                                                    <th className="text-right pb-1 font-bold">Amt({screenQty})</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {calculation.detailedItems.map((item, i) => (
-                                                    <tr key={i} className={`border-b border-slate-100 dark:border-slate-700/50 ${item.isOverridden ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
-                                                        <td className="py-2 flex items-center gap-1">
-                                                            {item.name}
-                                                            <button onClick={() => toggleEditRow(item.id)} className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 ${item.isOverridden ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500'}`}>
-                                                                <Edit size={12} />
-                                                            </button>
-                                                            {item.isOverridden && (
-                                                                <button onClick={() => clearOverride(item.id)} className="p-1 text-slate-400 hover:text-red-500" title="Reset to calculated"><RefreshCw size={12} /></button>
-                                                            )}
-                                                        </td>
-                                                        <td className="text-right py-2">
-                                                            {editingRow === item.id ? (
-                                                                <input
-                                                                    type="number"
-                                                                    className="w-16 p-1 text-right text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
-                                                                    value={overrides[item.id]?.rate !== undefined ? overrides[item.id].rate : item.unit}
-                                                                    onChange={e => handleOverride(item.id, 'rate', e.target.value)}
-                                                                />
-                                                            ) : (
-                                                                formatCurrency(item.unit, 'INR', false)
-                                                            )}
-                                                        </td>
-                                                        <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700">
-                                                            {editingRow === item.id ? (
-                                                                <input
-                                                                    type="number"
-                                                                    className="w-12 p-1 text-center text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
-                                                                    value={overrides[item.id]?.qty !== undefined ? overrides[item.id].qty : item.qty}
-                                                                    onChange={e => handleOverride(item.id, 'qty', e.target.value)}
-                                                                />
-                                                            ) : (
-                                                                item.qty
-                                                            )}
-                                                        </td>
-                                                        <td className="text-right py-2">{formatCurrency(item.total, 'INR', false)}</td>
-                                                        <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 font-bold">
-                                                            {item.qty * screenQty}
-                                                        </td>
-                                                        <td className="text-right py-2 font-bold">
-                                                            {formatCurrency(item.total * screenQty, 'INR', false)}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                <tr>
-                                                    <td colSpan="2" className="text-right font-medium py-2 text-xs text-slate-400 uppercase">Add. Costs</td>
-                                                    <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 text-slate-400">-</td>
-                                                    <td className="text-right font-medium py-2 text-slate-400">{formatCurrency(calculation.breakdown.extras, 'INR', false)}</td>
-                                                    <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 font-bold text-slate-400">-</td>
-                                                    <td className="text-right font-bold py-2 text-slate-400">{formatCurrency(calculation.breakdown.extras * screenQty, 'INR', false)}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
+        {/* REVISED: Commercials (Cost & Sell Grouped) */}
+        <div className="mb-6 bg-slate-50 dark:bg-slate-700/30 p-3 rounded border border-slate-200 dark:border-slate-600">
+            <div className="flex justify-between items-end mb-3">
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">Cost vs Sell</h4>
+                <div className="flex gap-4 text-[10px] uppercase font-bold text-slate-400 mr-2">
+                    <span className="w-24 text-center">Est. Cost</span>
+                    <span className="w-24 text-center">Selling Price</span>
+                </div>
+            </div>
 
-                                   <div className="bg-teal-50 dark:bg-teal-900/30 p-4 rounded-lg">
-                                        <div className="flex justify-between items-center mb-2 gap-2">
-                                            <select 
-                                                value={state.pricingMode || 'margin'} 
-                                                onChange={e => {
-                                                    const newMode = e.target.value;
-                                                    updateState('pricingMode', newMode);
-                                                    // Sync target price from current calculated values when switching away from margin
-                                                    if (newMode !== 'margin' && calculation) {
-                                                        let newTarget = 0;
-                                                        if (newMode === 'screen') newTarget = calculation.matrix.sell.unit;
-                                                        else if (newMode === 'sqft') newTarget = calculation.matrix.sell.sqft;
-                                                        else if (newMode === 'sqm') newTarget = calculation.matrix.sell.sqft * 10.7639;
-                                                        updateState('targetSellPrice', Math.round(newTarget));
-                                                    }
-                                                }}
-                                                className="bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-200 text-xs font-bold p-1 rounded border-none cursor-pointer focus:ring-0"
-                                            >
-                                                <option value="margin">Margin %</option>
-                                                <option value="sqft">Price / Sq.Ft</option>
-                                                <option value="sqm">Price / Sq.Mtr</option>
-                                                <option value="screen">Price / Screen</option>
-                                            </select>
-                                        </div>
-                                        <input 
-                                            type="number" 
-                                            className="w-full p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white font-bold"
-                                            value={state.pricingMode === 'margin' ? margin : state.targetSellPrice}
-                                            onChange={e => {
-                                                const val = parseFloat(e.target.value) || 0;
-                                                const mode = state.pricingMode || 'margin';
-                                                if (mode === 'margin') {
-                                                    updateState('margin', val);
-                                                } else {
-                                                    updateState('targetSellPrice', val);
-                                                }
-                                            }}
-                                        />
-                                        {(state.pricingMode && state.pricingMode !== 'margin' && calculation) && (
-                                            <div className="text-right mt-1">
-                                                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-                                                    = {(((calculation.totalProjectSell - calculation.totalProjectCost) / calculation.totalProjectCost) * 100 || 0).toFixed(2)}% Margin
-                                                </span>
-                                            </div>
+            <div className="space-y-3">
+                {/* 1. Processor (Cost is usually BOM based, so mostly Sell here) */}
+                <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold w-20">Processor</label>
+                    <div className="flex-1 flex gap-2 justify-end">
+                        <div className="w-full max-w-[140px] flex items-center justify-end text-xs text-slate-400 italic pr-2">
+                            (See BOM)
+                        </div>
+                        <div className="w-full max-w-[180px] flex items-center gap-1">
+                            <input 
+                                type="number" 
+                                className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
+                                value={state.commercials?.processor?.val} 
+                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, processor: {...p.commercials.processor, val: e.target.value}}}))} 
+                            />
+                            <select 
+                                className="w-16 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
+                                value={state.commercials?.processor?.unit} 
+                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, processor: {...p.commercials.processor, unit: e.target.value}}}))}
+                            >
+                                <option value="screen">/Scrn</option>
+                                <option value="unit">/Unit</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. Installation (Cost Input + Sell Input) */}
+                <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold w-20">Installation</label>
+                    <div className="flex-1 flex gap-2 justify-end">
+                        {/* Cost Input (Moved from Extras) */}
+                        <div className="w-full max-w-[140px] flex items-center">
+                            <input
+                                type="number"
+                                value={extras['install'].val}
+                                onChange={e => updateExtra('install', 'val', e.target.value)}
+                                className="w-full p-1.5 border rounded-l text-xs border-r-0 dark:bg-slate-700 dark:border-slate-500 dark:text-white"
+                                placeholder="Cost"
+                            />
+                            <button
+                                onClick={() => updateExtra('install', 'type', extras['install'].type === 'abs' ? 'pct' : 'abs')}
+                                className={`px-1.5 py-1.5 text-[10px] font-bold border rounded-r w-8 transition-colors dark:border-slate-500 ${extras['install'].type === 'pct' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-600 dark:text-slate-300'}`}
+                            >
+                                {extras['install'].type === 'abs' ? '₹' : '%'}
+                            </button>
+                        </div>
+                        
+                        {/* Sell Input */}
+                        <div className="w-full max-w-[180px] flex items-center gap-1">
+                            <input 
+                                type="number" 
+                                className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
+                                value={state.commercials?.installation?.val} 
+                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, installation: {...p.commercials.installation, val: e.target.value}}}))} 
+                            />
+                            <select 
+                                className="w-16 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
+                                value={state.commercials?.installation?.unit} 
+                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, installation: {...p.commercials.installation, unit: e.target.value}}}))}
+                            >
+                                <option value="sqft">/Sft</option>
+                                <option value="screen">/Scrn</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3. Structure (Cost Input + Sell Input) */}
+                <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold w-20">Structure</label>
+                    <div className="flex-1 flex gap-2 justify-end">
+                        {/* Cost Input (Moved from Extras) */}
+                        <div className="w-full max-w-[140px] flex items-center">
+                            <input
+                                type="number"
+                                value={extras['structure'].val}
+                                onChange={e => updateExtra('structure', 'val', e.target.value)}
+                                className="w-full p-1.5 border rounded-l text-xs border-r-0 dark:bg-slate-700 dark:border-slate-500 dark:text-white"
+                                placeholder="Cost"
+                            />
+                            <button
+                                onClick={() => updateExtra('structure', 'type', extras['structure'].type === 'abs' ? 'pct' : 'abs')}
+                                className={`px-1.5 py-1.5 text-[10px] font-bold border rounded-r w-8 transition-colors dark:border-slate-500 ${extras['structure'].type === 'pct' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-600 dark:text-slate-300'}`}
+                            >
+                                {extras['structure'].type === 'abs' ? '₹' : '%'}
+                            </button>
+                        </div>
+
+                        {/* Sell Input */}
+                        <div className="w-full max-w-[180px] flex items-center gap-1">
+                            <input 
+                                type="number" 
+                                className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
+                                value={state.commercials?.structure?.val} 
+                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, structure: {...p.commercials.structure, val: e.target.value}}}))} 
+                            />
+                            <select 
+                                className="w-16 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
+                                value={state.commercials?.structure?.unit} 
+                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, structure: {...p.commercials.structure, unit: e.target.value}}}))}
+                            >
+                                <option value="sqft">/Sft</option>
+                                <option value="screen">/Scrn</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* REVISED: Terms & Conditions Inputs (No changes needed here, just kept for context) */}
+        <div className="mb-6 bg-slate-50 dark:bg-slate-700/30 p-3 rounded border border-slate-200 dark:border-slate-600">
+             {/* ... (Keep existing Terms code) ... */}
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-3">Terms & Conditions</h4>
+            <div className="space-y-3">
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Price Basis</label>
+                    <input className="w-full p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" value={state.terms?.price || ''} onChange={e => setState(p => ({...p, terms: {...p.terms, price: e.target.value}}))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Delivery (Weeks)</label>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                        <span>Within</span>
+                        <input type="number" className="w-12 p-1.5 border rounded text-center dark:bg-slate-700 dark:border-slate-500 dark:text-white font-bold" value={state.terms?.deliveryWeeks || 0} onChange={e => setState(p => ({...p, terms: {...p.terms, deliveryWeeks: e.target.value}}))} />
+                        <span>weeks from advance</span>
+                    </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400 flex justify-between">
+                        <span>Payment Milestones</span>
+                        <button onClick={() => setState(p => ({...p, terms: {...p.terms, payment: [...(p.terms.payment || []), {name: '', percent: 0}]}}))} className="text-teal-600 hover:underline font-bold">+ Add</button>
+                    </label>
+                    {(state.terms?.payment || []).map((ms, idx) => (
+                        <div key={idx} className="flex gap-1 items-center">
+                            <input placeholder="Name" className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" value={ms.name} onChange={e => {
+                                const newPay = [...state.terms.payment];
+                                newPay[idx].name = e.target.value;
+                                setState(p => ({...p, terms: {...p.terms, payment: newPay}}));
+                            }} />
+                            <input type="number" placeholder="%" className="w-10 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white text-center" value={ms.percent} onChange={e => {
+                                const newPay = [...state.terms.payment];
+                                newPay[idx].percent = Number(e.target.value);
+                                setState(p => ({...p, terms: {...p.terms, payment: newPay}}));
+                            }} />
+                            <span className="text-xs text-slate-400">%</span>
+                            <button onClick={() => {
+                                const newPay = state.terms.payment.filter((_, i) => i !== idx);
+                                setState(p => ({...p, terms: {...p.terms, payment: newPay}}));
+                            }} className="text-red-400 hover:text-red-600 p-1"><X size={12}/></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+
+        {/* REVISED: Other Costs Grid (Removed Structure and Install from here) */}
+        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-2">Operational Costs</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+            <ExtraInput label="Hardware & Cables" fieldKey="hardware" extras={extras} updateExtra={updateExtra} currency='INR' />
+            <ExtraInput label="Assembly Labour" fieldKey="assembly" extras={extras} updateExtra={updateExtra} currency='INR' />
+            <ExtraInput label="Packaging" fieldKey="packaging" extras={extras} updateExtra={updateExtra} currency='INR' />
+            <ExtraInput label="Transport" fieldKey="transport" extras={extras} updateExtra={updateExtra} currency='INR' />
+            {/* Removed Install Labour */}
+            <ExtraInput label="Wastage / Buffer" fieldKey="wastage" extras={extras} updateExtra={updateExtra} currency='INR' />
+            <ExtraInput label="Operational Overheads" fieldKey="overheads" extras={extras} updateExtra={updateExtra} currency='INR' />
+        </div>
+
+        {/* ... (Keep existing Financial Matrix / Total table) ... */}
+        {calculation && (
+             <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
+                {/* ... existing table code ... */}
+                <div className="mb-4 overflow-x-auto">
+                    <table className="w-full text-xs text-slate-600 dark:text-slate-300">
+                        {/* ... table content same as before ... */}
+                        <thead>
+                            <tr className="border-b border-slate-200 dark:border-slate-600">
+                                <th className="text-left pb-1">Item</th>
+                                <th className="text-right pb-1">Rate</th>
+                                <th className="text-center pb-1 border-l border-slate-200 dark:border-slate-700 px-1">Qty(1)</th>
+                                <th className="text-right pb-1">Amt(1)</th>
+                                <th className="text-center pb-1 border-l border-slate-200 dark:border-slate-700 px-1 font-bold">Qty({screenQty})</th>
+                                <th className="text-right pb-1 font-bold">Amt({screenQty})</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {calculation.detailedItems.map((item, i) => (
+                                <tr key={i} className={`border-b border-slate-100 dark:border-slate-700/50 ${item.isOverridden ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
+                                    <td className="py-2 flex items-center gap-1">
+                                        {item.name}
+                                        <button onClick={() => toggleEditRow(item.id)} className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 ${item.isOverridden ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500'}`}>
+                                            <Edit size={12} />
+                                        </button>
+                                        {item.isOverridden && (
+                                            <button onClick={() => clearOverride(item.id)} className="p-1 text-slate-400 hover:text-red-500" title="Reset to calculated"><RefreshCw size={12} /></button>
                                         )}
-                                    </div>
+                                    </td>
+                                    <td className="text-right py-2">
+                                        {editingRow === item.id ? (
+                                            <input
+                                                type="number"
+                                                className="w-16 p-1 text-right text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
+                                                value={overrides[item.id]?.rate !== undefined ? overrides[item.id].rate : item.unit}
+                                                onChange={e => handleOverride(item.id, 'rate', e.target.value)}
+                                            />
+                                        ) : (
+                                            formatCurrency(item.unit, 'INR', false)
+                                        )}
+                                    </td>
+                                    <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700">
+                                        {editingRow === item.id ? (
+                                            <input
+                                                type="number"
+                                                className="w-12 p-1 text-center text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
+                                                value={overrides[item.id]?.qty !== undefined ? overrides[item.id].qty : item.qty}
+                                                onChange={e => handleOverride(item.id, 'qty', e.target.value)}
+                                            />
+                                        ) : (
+                                            item.qty
+                                        )}
+                                    </td>
+                                    <td className="text-right py-2">{formatCurrency(item.total, 'INR', false)}</td>
+                                    <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 font-bold">
+                                        {item.qty * screenQty}
+                                    </td>
+                                    <td className="text-right py-2 font-bold">
+                                        {formatCurrency(item.total * screenQty, 'INR', false)}
+                                    </td>
+                                </tr>
+                            ))}
+                            <tr>
+                                <td colSpan="2" className="text-right font-medium py-2 text-xs text-slate-400 uppercase">Add. Costs</td>
+                                <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 text-slate-400">-</td>
+                                <td className="text-right font-medium py-2 text-slate-400">{formatCurrency(calculation.breakdown.extras, 'INR', false)}</td>
+                                <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 font-bold text-slate-400">-</td>
+                                <td className="text-right font-bold py-2 text-slate-400">{formatCurrency(calculation.breakdown.extras * screenQty, 'INR', false)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                                    {/* Financial Matrix UI */}
+                {/* Pricing Mode & Margin Inputs */}
+                <div className="bg-teal-50 dark:bg-teal-900/30 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2 gap-2">
+                        <select 
+                            value={state.pricingMode || 'margin'} 
+                            onChange={e => {
+                                const newMode = e.target.value;
+                                updateState('pricingMode', newMode);
+                                if (newMode !== 'margin' && calculation) {
+                                    let newTarget = 0;
+                                    if (newMode === 'screen') newTarget = calculation.matrix.sell.unit;
+                                    else if (newMode === 'sqft') newTarget = calculation.matrix.sell.sqft;
+                                    else if (newMode === 'sqm') newTarget = calculation.matrix.sell.sqft * 10.7639;
+                                    updateState('targetSellPrice', Math.round(newTarget));
+                                }
+                            }}
+                            className="bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-200 text-xs font-bold p-1 rounded border-none cursor-pointer focus:ring-0"
+                        >
+                            <option value="margin">Margin %</option>
+                            <option value="sqft">Price / Sq.Ft</option>
+                            <option value="sqm">Price / Sq.Mtr</option>
+                            <option value="screen">Price / Screen</option>
+                        </select>
+                    </div>
+                    <input 
+                        type="number" 
+                        className="w-full p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white font-bold"
+                        value={state.pricingMode === 'margin' ? margin : state.targetSellPrice}
+                        onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            const mode = state.pricingMode || 'margin';
+                            if (mode === 'margin') {
+                                updateState('margin', val);
+                            } else {
+                                updateState('targetSellPrice', val);
+                            }
+                        }}
+                    />
+                    {(state.pricingMode && state.pricingMode !== 'margin' && calculation) && (
+                        <div className="text-right mt-1">
+                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                                = {(((calculation.totalProjectSell - calculation.totalProjectCost) / calculation.totalProjectCost) * 100 || 0).toFixed(2)}% Margin
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Financial Matrix UI */}
                                     <div className="mt-4 border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
                                         <table className="w-full text-xs">
                                             <thead className="bg-slate-100 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-300">
                                                 <tr>
-                                                    <th className="p-2 text-left">Metric</th>
-                                                    <th className="p-2 text-right">Per SqFt</th>
-                                                    <th className="p-2 text-right">Per Screen</th>
+                                                    <th className="p-2 text-left">Component</th>
+                                                    <th className="p-2 text-right">Cost (Unit)</th>
+                                                    <th className="p-2 text-right">Margin</th>
+                                                    <th className="p-2 text-right">Sell (Unit)</th>
                                                     <th className="p-2 text-right bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200">Total Project</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700 dark:text-slate-200">
+                                                {/* LED Panel Row - The Core Focus */}
                                                 <tr>
-                                                    <td className="p-2 font-medium">Cost</td>
-                                                    <td className="p-2 text-right">{formatCurrency(calculation.matrix.cost.sqft, 'INR')}</td>
-                                                    <td className="p-2 text-right">{formatCurrency(calculation.matrix.cost.unit, 'INR', false)}</td>
-                                                    <td className="p-2 text-right font-medium bg-teal-50 dark:bg-teal-900/20">{formatCurrency(calculation.matrix.cost.total, 'INR', false)}</td>
+                                                    <td className="p-2 font-bold text-slate-700 dark:text-slate-200">LED Panel (H/W)</td>
+                                                    <td className="p-2 text-right">{formatCurrency(calculation.matrix.led.cost, 'INR', false)}</td>
+                                                    <td className="p-2 text-right text-green-600">
+                                                        {formatCurrency(calculation.matrix.led.margin, 'INR', false)} <span className="text-[10px] text-slate-400">({calculation.matrix.led.marginPct.toFixed(1)}%)</span>
+                                                    </td>
+                                                    <td className="p-2 text-right font-bold">{formatCurrency(calculation.matrix.led.sell, 'INR', false)}</td>
+                                                    <td className="p-2 text-right text-slate-400">{formatCurrency(calculation.matrix.led.sell * screenQty, 'INR', false)}</td>
                                                 </tr>
+                                                
+                                                {/* Services Row */}
                                                 <tr>
-                                                    <td className="p-2 font-medium">Margin</td>
-                                                    <td className="p-2 text-right text-green-600 dark:text-green-400">{formatCurrency(calculation.matrix.margin.sqft, 'INR')}</td>
-                                                    <td className="p-2 text-right text-green-600 dark:text-green-400">{formatCurrency(calculation.matrix.margin.unit, 'INR', false)}</td>
-                                                    <td className="p-2 text-right font-medium text-green-700 dark:text-green-300 bg-teal-50 dark:bg-teal-900/20">{formatCurrency(calculation.matrix.margin.total, 'INR', false)}</td>
+                                                    <td className="p-2 font-medium text-slate-500">Services (Install/Str/Proc)</td>
+                                                    <td className="p-2 text-right text-slate-500">{formatCurrency(calculation.costServicesPerScreen, 'INR', false)}</td>
+                                                    <td className="p-2 text-right text-slate-400">-</td>
+                                                    <td className="p-2 text-right text-slate-500">{formatCurrency(calculation.commercials.sellProcTotal/screenQty + calculation.commercials.sellInstallTotal/screenQty + calculation.commercials.sellStructureTotal/screenQty, 'INR', false)}</td>
+                                                    <td className="p-2 text-right text-slate-400">{formatCurrency(calculation.commercials.sellProcTotal + calculation.commercials.sellInstallTotal + calculation.commercials.sellStructureTotal, 'INR', false)}</td>
                                                 </tr>
-                                                <tr className="bg-slate-50 dark:bg-slate-800/50">
-                                                    <td className="p-2 font-bold">Sell Price</td>
-                                                    <td className="p-2 text-right font-bold">{formatCurrency(calculation.matrix.sell.sqft, 'INR')}</td>
+
+                                                {/* Grand Total Row */}
+                                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-t-2 border-slate-200 dark:border-slate-600">
+                                                    <td className="p-2 font-bold uppercase text-teal-800 dark:text-teal-400">Grand Total</td>
+                                                    <td className="p-2 text-right font-medium">{formatCurrency(calculation.matrix.cost.unit, 'INR', false)}</td>
+                                                    <td className="p-2 text-right font-medium text-green-600">{formatCurrency(calculation.matrix.margin.unit, 'INR', false)}</td>
                                                     <td className="p-2 text-right font-bold">{formatCurrency(calculation.matrix.sell.unit, 'INR', false)}</td>
                                                     <td className="p-2 text-right font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40">{formatCurrency(calculation.matrix.sell.total, 'INR', false)}</td>
                                                 </tr>
-                                                {/* SFT Row */}
+                                                
+                                                {/* Stats Row */}
                                                 <tr>
-                                                    <td className="p-2 font-medium text-slate-400">Total Area</td>
-                                                    <td className="p-2 text-right text-slate-500">-</td>
-                                                    <td className="p-2 text-right text-slate-500">{calculation.matrix.sqft.perScreen.toFixed(2)} Sft</td>
-                                                    <td className="p-2 text-right font-bold text-slate-600 dark:text-slate-300">{calculation.matrix.sqft.total.toFixed(2)} Sq.Ft</td>
+                                                    <td className="p-2 text-[10px] text-slate-400" colSpan="5">
+                                                        Area: {calculation.matrix.sqft.total.toFixed(2)} Sq.Ft • 
+                                                        Avg Rate: {formatCurrency(calculation.matrix.sell.total / calculation.matrix.sqft.total, 'INR')}/Sq.Ft
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+             </div>
+        )}
+    </div>
+</div>
 
                     {/* Right: Visualizer & Actions */}
                     <div className="lg:col-span-4 space-y-6">
@@ -1711,6 +2134,20 @@
                 selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
                 selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
                 margin: 30, targetSellPrice: 0,
+                commercials: { 
+                    processor: {val: 0, unit: 'screen'}, 
+                    installation: {val: 0, unit: 'sqft'}, 
+                    structure: {val: 0, unit: 'sqft'} 
+                },
+                terms: {
+                    price: 'Ex-works Mumbai',
+                    deliveryWeeks: 10,
+                    payment: [
+                        { name: "Advance with order", percent: 60 },
+                        { name: "Before dispatch", percent: 30 },
+                        { name: "After installation", percent: 10 }
+                    ]
+                },
                 extraComponents: [],
                 extras: {
                     assembly: { val: 0, type: 'abs' },
@@ -1800,7 +2237,7 @@
                     <main className="max-w-[1600px] mx-auto p-6">
                         {view === 'inventory' && <InventoryManager user={user} transactions={transactions} />}
                         {view === 'ledger' && <InventoryLedger user={user} inventory={inventory} transactions={transactions} />}
-                        {view === 'saved' && <SavedQuotesManager user={user} onLoadQuote={handleLoadQuote} />}
+                        {view === 'saved' && <SavedQuotesManager user={user} inventory={inventory} transactions={transactions} exchangeRate={exchangeRate} onLoadQuote={handleLoadQuote} />}
                         {view === 'quote' && (
                             <QuoteCalculator 
                                 user={user} 
