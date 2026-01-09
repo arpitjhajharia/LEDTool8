@@ -1346,52 +1346,339 @@
                 }
             };
         };
-        // 5. Main Calculator (Stateless - Props Only)
+        // 5. Updated QuoteCalculator (Mockup UI Implementation)
+
+        // --- Helper Components ---
+        const LogisticsInput = ({ label, fieldKey, extras, updateExtra }) => (
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <label className="text-xs text-slate-500 dark:text-slate-400 flex-1">{label}</label>
+                <div className="flex items-center w-36 relative">
+                    <input
+                        type="number"
+                        value={extras[fieldKey].val}
+                        onChange={e => updateExtra(fieldKey, 'val', e.target.value)}
+                        className="w-full pl-3 pr-9 py-1.5 text-right text-sm border border-slate-200 dark:border-slate-600 rounded bg-slate-50 dark:bg-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-700 focus:ring-1 focus:ring-teal-500 transition-all"
+                    />
+                    <button
+                        onClick={() => updateExtra(fieldKey, 'type', extras[fieldKey].type === 'abs' ? 'pct' : 'abs')}
+                        className="absolute right-1 top-1 bottom-1 px-1.5 text-[10px] font-bold text-slate-400 hover:text-teal-600 uppercase bg-transparent"
+                    >
+                        {extras[fieldKey].type === 'abs' ? '₹' : '%'}
+                    </button>
+                </div>
+            </div>
+        );
+
+        const CommercialInput = ({ label, costVal, setCost, sellVal, setSell, sellUnit, setSellUnit }) => (
+            <div className="mb-3">
+                <div className="flex justify-between text-xs mb-1">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>
+                    {sellUnit && (
+                        <select value={sellUnit} onChange={e => setSellUnit(e.target.value)} className="text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-700 border-none rounded px-1 py-0.5 outline-none cursor-pointer">
+                            <option value="sqft">/Sq.Ft</option>
+                            <option value="screen">/Screen</option>
+                        </select>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    <div className="relative flex-1 group">
+                        <span className="absolute left-2 top-1.5 text-xs text-slate-400 font-bold">Cost</span>
+                        <input type="number" value={costVal} onChange={e => setCost(e.target.value)} placeholder="0" className="w-full pl-10 pr-2 py-1.5 text-right text-sm border border-slate-200 dark:border-slate-600 rounded bg-red-50/30 dark:bg-red-900/10 focus:bg-white dark:focus:bg-slate-700 dark:text-white transition-colors" />
+                    </div>
+                    <div className="relative flex-1">
+                        <span className="absolute left-2 top-1.5 text-xs text-slate-400 font-bold">Sell</span>
+                        <input type="number" value={sellVal} onChange={e => setSell(e.target.value)} placeholder="0" className="w-full pl-10 pr-2 py-1.5 text-right text-sm border border-slate-200 dark:border-slate-600 rounded bg-green-50/30 dark:bg-green-900/10 focus:bg-white dark:focus:bg-slate-700 dark:text-white font-semibold text-green-700 dark:text-green-400 transition-colors" />
+                    </div>
+                </div>
+            </div>
+        );
+
+  // --- Interactive Cost Table (With Sub-totals & Working Add Button) ---
+        const InteractiveCostSheet = ({ calculation, state, updateState, updateExtra, inventory, getStock, overrides, onOverride, editingRow, setEditingRow, onClearOverride }) => {
+            
+            const { screenQty, selectedPitch, selectedModuleId, selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, assemblyMode, selectedIndoor, extras, commercials } = state;
+
+            // Safety ID Generator
+            const safeGenId = () => Math.random().toString(36).substr(2, 9).toUpperCase();
+
+            // --- Filter Logic ---
+            const isIndoor = selectedIndoor === 'true';
+            const availableModules = inventory.filter(i => i.type === 'module' && i.indoor === isIndoor);
+            const uniquePitches = [...new Set(availableModules.map(m => m.pitch))].sort((a, b) => a - b);
+            const filteredModules = selectedPitch ? availableModules.filter(m => m.pitch == selectedPitch) : [];
+            const selectedModule = inventory.find(i => i.id === selectedModuleId);
+            const cabinets = inventory.filter(i => {
+                if (i.type !== 'cabinet') return false;
+                if (!selectedModule) return true;
+                return (i.width % selectedModule.width === 0) && (i.height % selectedModule.height === 0);
+            });
+            const readyUnits = inventory.filter(i => i.type === 'ready' && i.indoor === isIndoor);
+
+            // --- Helper: Render Hardware Selection ---
+            const renderComponentCell = (item) => {
+                if (item.id === 'modules') {
+                    return (
+                        <div className="flex gap-2">
+                            <select value={selectedPitch} onChange={e => { updateState('selectedPitch', e.target.value); updateState('selectedModuleId', ''); }} className="w-20 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+                                <option value="">Pitch</option>{uniquePitches.map(p => <option key={p} value={p}>P{p}</option>)}
+                            </select>
+                            <select value={selectedModuleId} onChange={e => updateState('selectedModuleId', e.target.value)} disabled={!selectedPitch} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50">
+                                <option value="">Select Module...</option>
+                                {filteredModules.map(m => <option key={m.id} value={m.id}>{m.brand} {m.model} ({getStock(m.id)})</option>)}
+                            </select>
+                        </div>
+                    );
+                }
+                if (item.id === 'cabinets') {
+                    return <select value={selectedCabinetId} onChange={e => updateState('selectedCabinetId', e.target.value)} disabled={!selectedModule} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50"><option value="">Select Cabinet...</option>{cabinets.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({c.width}x{c.height}) - Stock: {getStock(c.id)}</option>)}</select>;
+                }
+                if (item.id === 'cards') {
+                    return <select value={selectedCardId} onChange={e => updateState('selectedCardId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select Card...</option>{inventory.filter(i => i.type === 'card').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}</select>;
+                }
+                if (item.id === 'psu') {
+                    return <select value={selectedPSUId} onChange={e => updateState('selectedPSUId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select SMPS...</option>{inventory.filter(i => i.type === 'psu').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}</select>;
+                }
+                if (item.id === 'processor') {
+                    return (
+                        <div className="flex flex-col gap-1">
+                            <select value={selectedProcId} onChange={e => updateState('selectedProcId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+                                <option value="">Select Processor...</option>
+                                {inventory.filter(i => i.type === 'processor').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}
+                            </select>
+                            <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-green-600 font-bold">Sell:</span>
+                                <input 
+                                    type="number" 
+                                    className="w-20 p-0.5 text-xs border border-green-200 rounded bg-green-50 text-green-800"
+                                    value={state.commercials.processor?.val || 0}
+                                    onChange={e => updateState('commercials', {...commercials, processor: {...commercials.processor, val: e.target.value}})}
+                                />
+                            </div>
+                        </div>
+                    );
+                }
+                if (item.id === 'ready') {
+                     return <select value={state.readyId} onChange={e => updateState('readyId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select Screen Model...</option>{readyUnits.map(u => <option key={u.id} value={u.id}>{u.brand} {u.model} (P{u.pitch})</option>)}</select>;
+                }
+                
+                const extraIdx = state.extraComponents ? state.extraComponents.findIndex(e => e.id === item.id) : -1;
+                if (extraIdx !== -1) {
+                     return (
+                        <div className="flex gap-1 items-center">
+                            <select value={state.extraComponents[extraIdx].componentId} onChange={e => { const n = [...state.extraComponents]; n[extraIdx].componentId = e.target.value; updateState('extraComponents', n); }} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+                                <option value="">Select...</option>
+                                {inventory.filter(i => ['module', 'card', 'psu', 'cabinet'].includes(i.type)).map(i => <option key={i.id} value={i.id}>{i.brand} {i.model}</option>)}
+                            </select>
+                            <select value={state.extraComponents[extraIdx].type} onChange={e => { const n = [...state.extraComponents]; n[extraIdx].type = e.target.value; updateState('extraComponents', n); }} className="w-16 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="screen">/Scrn</option><option value="cabinet">/Cab</option></select>
+                            <button type="button" onClick={() => updateState('extraComponents', state.extraComponents.filter((_, i) => i !== extraIdx))} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+                        </div>
+                    );
+                }
+                return <span className="font-bold text-slate-700 dark:text-slate-200">{item.name} <span className="text-[10px] text-slate-400 font-normal">({item.spec})</span></span>;
+            };
+
+            // --- Calculation Grouping ---
+            const getExtraCost = (key) => calculation?.calculatedExtras?.[key] || 0;
+            
+            const defaultItems = assemblyMode === 'assembled' ? [
+                { id: 'modules', type: 'led', name: 'Modules', qty: 0, unit: 0, total: 0, spec: 'Select Pitch & Variant' },
+                { id: 'cabinets', type: 'led', name: 'Cabinets', qty: 0, unit: 0, total: 0, spec: 'Select Cabinet' },
+                { id: 'cards', type: 'led', name: 'Receiving Cards', qty: 0, unit: 0, total: 0, spec: 'Optional' },
+                { id: 'psu', type: 'led', name: 'SMPS', qty: 0, unit: 0, total: 0, spec: 'Optional' },
+                { id: 'processor', type: 'service', name: 'Processor', qty: 1, unit: 0, total: 0, spec: 'Select Processor' }
+            ] : [
+                { id: 'ready', type: 'led', name: 'Ready Unit', qty: 0, unit: 0, total: 0, spec: 'Select Model' },
+                { id: 'processor', type: 'service', name: 'Processor', qty: 1, unit: 0, total: 0, spec: 'Select Processor' }
+            ];
+
+            let displayItems = calculation ? calculation.detailedItems : defaultItems;
+            
+            if (!calculation && state.extraComponents?.length > 0) {
+                displayItems = [...displayItems, ...state.extraComponents.map(e => ({ id: e.id, type: 'led', name: 'Extra', spec: 'Select...', qty: e.qty, unit: 0, total: 0 }))];
+            }
+
+            // Calculations for Subtotals
+            const areaSqFt = calculation?.matrix?.sqft?.perScreen || 1;
+            
+            const ledItems = displayItems.filter(i => i.type === 'led');
+            const logisticsKeys = ['hardware', 'assembly', 'packaging', 'transport', 'wastage', 'overheads'];
+            const logisticsTotal = logisticsKeys.reduce((sum, key) => sum + getExtraCost(key), 0);
+            
+            const ledItemsTotal = ledItems.reduce((sum, item) => sum + (item.total * screenQty), 0);
+            const ledPanelSubtotal = ledItemsTotal + (logisticsTotal * screenQty);
+            const ledPanelPerScreen = ledPanelSubtotal / (screenQty || 1);
+            const ledPanelPerSqFt = ledPanelPerScreen / areaSqFt;
+            
+            const serviceItems = displayItems.filter(i => i.type !== 'led'); 
+            const installCost = getExtraCost('install');
+            const structureCost = getExtraCost('structure');
+            const serviceItemsTotal = serviceItems.reduce((sum, item) => sum + (item.total * screenQty), 0);
+            const additionalSubtotal = serviceItemsTotal + ((installCost + structureCost) * screenQty);
+            const additionalPerScreen = additionalSubtotal / (screenQty || 1);
+            const additionalPerSqFt = additionalPerScreen / areaSqFt;
+
+            const grandTotal = ledPanelSubtotal + additionalSubtotal;
+            const grandTotalPerScreen = grandTotal / (screenQty || 1);
+            const grandTotalPerSqFt = grandTotalPerScreen / areaSqFt;
+
+            // --- Render Rows Helper ---
+            const renderItemRow = (item) => (
+                <tr key={item.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${item.isOverridden ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+                    <td className="p-2 pl-4">
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1">{renderComponentCell(item)}</div>
+                            {calculation && (
+                                <>
+                                    <button type="button" onClick={() => setEditingRow(editingRow === item.id ? null : item.id)} className={`p-1 rounded ${editingRow === item.id ? 'bg-teal-100 text-teal-700' : 'text-slate-300 hover:text-teal-600'}`}><Edit size={12} /></button>
+                                    {item.isOverridden && <button type="button" onClick={() => onClearOverride(item.id)} className="text-amber-500 hover:text-red-500"><RefreshCw size={12} /></button>}
+                                </>
+                            )}
+                        </div>
+                    </td>
+                    <td className="p-2 text-right w-24">
+                        {editingRow === item.id ? (
+                            <input type="number" className="w-full p-1 text-right text-xs border rounded" value={overrides[item.id]?.rate ?? item.unit} onChange={e => onOverride(item.id, 'rate', e.target.value)} />
+                        ) : formatCurrency(item.unit, 'INR', false)}
+                    </td>
+                    <td className="p-2 text-center border-l border-slate-100 dark:border-slate-700 w-16">
+                        {editingRow === item.id ? (
+                            <input type="number" className="w-full p-1 text-center text-xs border rounded" value={overrides[item.id]?.qty ?? item.qty} onChange={e => onOverride(item.id, 'qty', e.target.value)} />
+                        ) : item.qty}
+                    </td>
+                    <td className="p-2 text-right text-slate-500 w-24">{formatCurrency(item.total, 'INR', false)}</td>
+                    <td className="p-2 text-right font-medium border-l border-slate-100 dark:border-slate-700 w-28">{formatCurrency(item.total * screenQty, 'INR', false)}</td>
+                </tr>
+            );
+
+            const renderLogisticsRow = (key) => (
+                <tr key={key} className="text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td className="p-2 pl-4 text-xs font-medium capitalize">{key}</td>
+                    <td className="p-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                            <input type="number" value={extras[key].val} onChange={e => updateExtra(key, 'val', e.target.value)} className="w-16 p-1 text-right text-xs border rounded bg-white dark:bg-slate-800 dark:border-slate-600" />
+                            <button type="button" onClick={() => updateExtra(key, 'type', extras[key].type === 'abs' ? 'pct' : 'abs')} className="px-1 text-[10px] font-bold border rounded bg-slate-100 dark:bg-slate-700">{extras[key].type === 'abs' ? '₹' : '%'}</button>
+                        </div>
+                    </td>
+                    <td className="p-2 text-center border-l border-slate-100 dark:border-slate-700 text-[10px] text-slate-400">{extras[key].type === 'pct' ? `${extras[key].val}%` : '-'}</td>
+                    <td className="p-2 text-right">{formatCurrency(getExtraCost(key), 'INR', false)}</td>
+                    <td className="p-2 text-right border-l border-slate-100 dark:border-slate-700">{formatCurrency(getExtraCost(key) * screenQty, 'INR', false)}</td>
+                </tr>
+            );
+
+            const renderServiceRow = (sellKey, label, costKey = sellKey) => (
+                <tr key={sellKey} className="text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td className="p-2 pl-4">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs font-medium">{label}</span>
+                                <select value={commercials[sellKey]?.unit || 'sqft'} onChange={e => updateState('commercials', {...commercials, [sellKey]: {...commercials[sellKey], unit: e.target.value}})} className="text-[10px] p-0.5 border rounded bg-slate-50 dark:bg-slate-700"><option value="sqft">/Sq.Ft</option><option value="screen">/Screen</option></select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-green-600 font-bold">Sell:</span>
+                                <input type="number" className="w-20 p-0.5 text-xs border border-green-200 rounded bg-green-50 text-green-800" value={commercials[sellKey]?.val || 0} onChange={e => updateState('commercials', {...commercials, [sellKey]: {...commercials[sellKey], val: e.target.value}})} />
+                            </div>
+                        </div>
+                    </td>
+                    <td className="p-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                            <span className="text-[10px] text-slate-400 mr-1">Cost:</span>
+                            <input type="number" value={extras[costKey]?.val || 0} onChange={e => updateExtra(costKey, 'val', e.target.value)} className="w-16 p-1 text-right text-xs border rounded bg-white dark:bg-slate-800 dark:border-slate-600" />
+                            <button type="button" onClick={() => updateExtra(costKey, 'type', extras[costKey]?.type === 'abs' ? 'pct' : 'abs')} className="px-1 text-[10px] font-bold border rounded bg-slate-100 dark:bg-slate-700">{extras[costKey]?.type === 'abs' ? '₹' : '%'}</button>
+                        </div>
+                    </td>
+                    <td className="p-2 text-center border-l border-slate-100 dark:border-slate-700 text-xs">
+                        {commercials[sellKey]?.unit === 'sqft' ? calculation?.matrix.sqft.perScreen.toFixed(1) || '-' : '1'}
+                    </td>
+                    <td className="p-2 text-right">{formatCurrency(getExtraCost(costKey), 'INR', false)}</td>
+                    <td className="p-2 text-right border-l border-slate-100 dark:border-slate-700">{formatCurrency(getExtraCost(costKey) * screenQty, 'INR', false)}</td>
+                </tr>
+            );
+
+            return (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+                                <th className="p-2">Component Selection</th>
+                                <th className="p-2 text-right">Rate (Cost)</th>
+                                <th className="p-2 text-center border-l border-slate-200 dark:border-slate-700">Qty/Scrn</th>
+                                <th className="p-2 text-right">Cost/Scrn</th>
+                                <th className="p-2 text-right border-l border-slate-200 dark:border-slate-700">Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {/* LED Panel */}
+                            <tr className="bg-slate-50 dark:bg-slate-800/50"><td colSpan="5" className="p-2 font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider text-[10px]">A. LED Panel & Logistics</td></tr>
+                            {ledItems.map(renderItemRow)}
+                            <tr className="bg-white dark:bg-slate-900">
+                                <td colSpan="5" className="p-2 text-center">
+                                    <button type="button" onClick={() => updateState('extraComponents', [...(state.extraComponents || []), { id: safeGenId(), componentId: '', qty: 1, type: 'screen' }])} className="text-[10px] text-teal-600 hover:underline flex items-center justify-center gap-1 w-full"><Plus size={10}/> Add Component to Panel</button>
+                                </td>
+                            </tr>
+                            {logisticsKeys.map(k => renderLogisticsRow(k))}
+                            <tr className="bg-teal-50 dark:bg-teal-900/20 font-bold border-t border-teal-100 dark:border-teal-800">
+                                <td className="p-2 text-right text-teal-800 dark:text-teal-300">Sub-total (LED Panel)</td>
+                                <td className="p-2 text-right text-teal-700 dark:text-teal-400 text-[10px] font-normal">{formatCurrency(ledPanelPerSqFt, 'INR')}/sqft</td>
+                                <td className="p-2 text-center border-l border-teal-100 dark:border-teal-800">-</td>
+                                <td className="p-2 text-right text-teal-800 dark:text-teal-300">{formatCurrency(ledPanelPerScreen, 'INR', false)}</td>
+                                <td className="p-2 text-right text-teal-800 dark:text-teal-300 border-l border-teal-100 dark:border-teal-800">{formatCurrency(ledPanelSubtotal, 'INR', false)}</td>
+                            </tr>
+
+                            {/* Additional Costs */}
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700"><td colSpan="5" className="p-2 font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider text-[10px]">B. Additional Costs</td></tr>
+                            {serviceItems.map(renderItemRow)}
+                            {renderServiceRow('installation', 'Installation', 'install')}
+                            {renderServiceRow('structure', 'Structure', 'structure')}
+                             <tr className="bg-blue-50 dark:bg-blue-900/20 font-bold border-t border-blue-100 dark:border-blue-800">
+                                <td className="p-2 text-right text-blue-800 dark:text-blue-300">Sub-total (Additional)</td>
+                                <td className="p-2 text-right text-blue-700 dark:text-blue-400 text-[10px] font-normal">{formatCurrency(additionalPerSqFt, 'INR')}/sqft</td>
+                                <td className="p-2 text-center border-l border-blue-100 dark:border-blue-800">-</td>
+                                <td className="p-2 text-right text-blue-800 dark:text-blue-300">{formatCurrency(additionalPerScreen, 'INR', false)}</td>
+                                <td className="p-2 text-right text-blue-800 dark:text-blue-300 border-l border-blue-100 dark:border-blue-800">{formatCurrency(additionalSubtotal, 'INR', false)}</td>
+                            </tr>
+
+                            {/* Grand Total */}
+                            <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900 text-sm">
+                                <td className="p-3 text-right uppercase">Grand Total (Cost)</td>
+                                <td className="p-3 text-right text-slate-300 text-xs font-normal">{formatCurrency(grandTotalPerSqFt, 'INR')}/sqft</td>
+                                <td className="p-3 text-center border-l border-slate-600">-</td>
+                                <td className="p-3 text-right border-l border-slate-600">{formatCurrency(grandTotalPerScreen, 'INR', false)}</td>
+                                <td className="p-3 text-right border-l border-slate-600">{formatCurrency(grandTotal, 'INR', false)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
         const QuoteCalculator = ({ user, inventory, transactions, state, setState, exchangeRate, setExchangeRate, onSaveQuote }) => {
             const {
                 client, project, screenQty, targetWidth, targetHeight, unit, 
-                selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, 
-                selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, 
-                sizingMode, readyId, margin, extras, overrides, editingRow
+                selectedIndoor, assemblyMode, sizingMode, margin, extras, overrides, editingRow
             } = state;
 
             const [calculation, setCalculation] = React.useState(null);
             const [showPreview, setShowPreview] = React.useState(false); 
             const [showStock, setShowStock] = React.useState(false);
             const [showBOM, setShowBOM] = React.useState(false);
+            const [bomTab, setBomTab] = React.useState('interactive');
 
+            // Logic Helpers
             const getStock = (id) => transactions ? transactions.filter(t => t.itemId === id).reduce((acc, t) => acc + (t.type === 'in' ? Number(t.qty) : -Number(t.qty)), 0) : 0;
-
             const updateState = (key, value) => setState(prev => ({ ...prev, [key]: value }));
             const updateExtra = (key, field, val) => {
                 setState(prev => ({ ...prev, extras: { ...prev.extras, [key]: { ...prev.extras[key], [field]: val } } }));
             };
 
-            const handleOverride = (id, field, value) => {
-                setState(prev => ({
-                    ...prev, overrides: { ...prev.overrides, [id]: { ...prev.overrides[id], [field]: value } }
-                }));
-            };
-
-            const clearOverride = (id) => {
-                const newOverrides = { ...overrides };
-                delete newOverrides[id];
-                updateState('overrides', newOverrides);
-                updateState('editingRow', null);
-            };
-
-            const toggleEditRow = (id) => {
-                updateState('editingRow', editingRow === id ? null : id);
-            };
-
             const handleReset = () => {
                 if (confirm("Reset calculator to defaults?")) {
                     setState({
-                        client: '', project: '', screenQty: '', targetWidth: '', targetHeight: '', unit: 'ft', 
+                        client: '', project: '', 
+                        screenQty: 0, targetWidth: 0, targetHeight: 0,
+                        unit: 'ft', 
                         selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
                         selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
                         selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
-                        margin: 30, pricingMode: 'margin', targetSellPrice: 0,
+                        margin: 0, pricingMode: 'margin', targetSellPrice: 0,
                         extraComponents: [],
                         commercials: { 
                             processor: {val: 0, unit: 'screen'}, 
@@ -1423,36 +1710,79 @@
                 }
             };
 
-            // Filters
-            const isIndoor = selectedIndoor === 'true';
-            const availableModules = inventory.filter(i => i.type === 'module' && i.indoor === isIndoor);
-            const uniquePitches = [...new Set(availableModules.map(m => m.pitch))].sort((a, b) => a - b);
-            const filteredModules = selectedPitch ? availableModules.filter(m => m.pitch == selectedPitch) : [];
-            const readyUnits = inventory.filter(i => i.type === 'ready' && i.indoor === isIndoor);
+            // Override Handlers
+            const handleOverride = (id, field, value) => {
+                setState(prev => ({
+                    ...prev, overrides: { ...prev.overrides, [id]: { ...prev.overrides[id], [field]: value } }
+                }));
+            };
 
-            const selectedModule = inventory.find(i => i.id === selectedModuleId);
-            const cabinets = inventory.filter(i => {
-                if (i.type !== 'cabinet') return false;
-                if (!selectedModule) return true;
-                const wMod = i.width % selectedModule.width;
-                const hMod = i.height % selectedModule.height;
-                return wMod === 0 && hMod === 0;
-            });
+            const clearOverride = (id) => {
+                const newOverrides = { ...overrides };
+                delete newOverrides[id];
+                updateState('overrides', newOverrides);
+                updateState('editingRow', null);
+            };
 
-            const cards = inventory.filter(i => i.type === 'card');
-            const psus = inventory.filter(i => i.type === 'psu');
-            const processors = inventory.filter(i => i.type === 'processor');
-
-            // --- REAL-TIME CALCULATION ---
+            // Real-time Calculation
             React.useEffect(() => {
                 const result = calculateBOM(state, inventory, transactions, exchangeRate);
                 setCalculation(result);
-}, [targetWidth, targetHeight, unit, selectedIndoor, assemblyMode, selectedPitch, selectedModuleId, selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, readyId, sizingMode, margin, extras, inventory, exchangeRate, screenQty, overrides, state.pricingMode, state.targetSellPrice, state.extraComponents, state.commercials, state.terms]);
+            }, [state.targetWidth, state.targetHeight, state.unit, state.selectedIndoor, state.assemblyMode, state.selectedPitch, state.selectedModuleId, state.selectedCabinetId, state.selectedCardId, state.selectedPSUId, state.selectedProcId, state.readyId, state.sizingMode, state.margin, state.extras, inventory, exchangeRate, state.screenQty, state.overrides, state.pricingMode, state.targetSellPrice, state.extraComponents, state.commercials, state.terms]);
 
-             return (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+            // Profit Color Logic
+            const profit = calculation ? calculation.matrix.margin.total : 0;
+            const profitColor = profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
 
-                    {/* PDF Preview Modal */}
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative items-start">
+                    
+                    {/* --- Interactive BOM Modal --- */}
+                    {showBOM && calculation && (
+                        <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
+                            <div className="bg-white dark:bg-slate-900 max-w-5xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+                                    <div className="flex items-center gap-4">
+                                        <h2 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2"><FileText size={20} className="text-teal-600"/> Cost Sheet</h2>
+                                        <div className="flex bg-slate-200 dark:bg-slate-700 rounded p-1">
+                                            <button onClick={() => setBomTab('interactive')} className={`px-3 py-1 text-xs font-bold rounded ${bomTab === 'interactive' ? 'bg-white dark:bg-slate-600 shadow text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-slate-400'}`}>Interactive Table</button>
+                                            <button onClick={() => setBomTab('print')} className={`px-3 py-1 text-xs font-bold rounded ${bomTab === 'print' ? 'bg-white dark:bg-slate-600 shadow text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-slate-400'}`}>Print Layout</button>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setShowBOM(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-sm font-bold">Close</button>
+                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-700 rounded flex items-center gap-2 text-sm font-bold"><Printer size={16}/> Print</button>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-auto bg-white dark:bg-slate-900 p-0">
+                                    {bomTab === 'interactive' ? (
+                                        <div className="p-6">
+                                            <InteractiveCostSheet 
+                                                calculation={calculation} 
+                                                state={state}
+                                                updateState={updateState}
+                                                updateExtra={updateExtra}
+                                                inventory={inventory}
+                                                getStock={getStock}
+                                                screenQty={screenQty} 
+                                                overrides={overrides} 
+                                                onOverride={handleOverride}
+                                                editingRow={editingRow}
+                                                setEditingRow={(id) => updateState('editingRow', id)}
+                                                onClearOverride={clearOverride}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="p-8 bg-slate-100 dark:bg-slate-800 min-h-full flex justify-center">
+                                            <BOMLayout data={{...calculation, clientName: client, projectName: project}} />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- Other Modals --- */}
                     {showPreview && calculation && (
                         <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
                             <div className="bg-white max-w-4xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col">
@@ -1469,66 +1799,24 @@
                             </div>
                        </div>
                     )}
-
-                    {/* BOM Preview Modal */}
-                    {showBOM && calculation && (
-                        <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
-                            <div className="bg-white max-w-4xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col">
-                                <div className="p-4 border-b flex justify-between items-center bg-slate-100 rounded-t-lg">
-                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><FileText size={20}/> Bill of Materials</h2>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setShowBOM(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded">Close</button>
-                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded flex items-center gap-2"><Printer size={16}/> Print BOM</button>
-                                    </div>
-                                </div>
-                                <div className="flex-1 overflow-auto p-8 bg-slate-200">
-                                    <BOMLayout data={{...calculation, clientName: client, projectName: project}} />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    
-                    <div className="print-only">
-                         {showBOM && calculation && <BOMLayout data={{...calculation, clientName: client, projectName: project}} />}
-                    </div>
-
-                    {/* Stock Check Modal */}
-                    {showStock && calculation && (
+                     {showStock && calculation && (
                         <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
                             <div className="bg-white max-w-2xl w-full rounded-lg shadow-2xl flex flex-col">
                                 <div className="p-4 border-b flex justify-between items-center bg-slate-100 rounded-t-lg">
-                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Box size={20}/> Stock Availability Check</h2>
+                                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Box size={20}/> Stock Availability</h2>
                                     <button onClick={() => setShowStock(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded">Close</button>
                                 </div>
-                                <div className="p-6">
+                                <div className="p-6 overflow-auto">
                                     <table className="w-full text-sm text-left border border-slate-200">
                                         <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-xs">
-                                            <tr>
-                                                <th className="px-4 py-2">Component</th>
-                                                <th className="px-4 py-2 text-center">Required</th>
-                                                <th className="px-4 py-2 text-center">In Stock</th>
-                                                <th className="px-4 py-2 text-center">Balance</th>
-                                            </tr>
+                                            <tr><th className="px-4 py-2">Component</th><th className="px-4 py-2 text-center">Required</th><th className="px-4 py-2 text-center">Stock</th><th className="px-4 py-2 text-center">Balance</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {calculation.detailedItems.map((item, i) => {
                                                 const reqQty = item.qty * screenQty;
                                                 const stock = item.inventoryId ? getStock(item.inventoryId) : 0;
                                                 const balance = stock - reqQty;
-                                                
-                                                return (
-                                                    <tr key={i}>
-                                                        <td className="px-4 py-2">
-                                                            <div className="font-medium text-slate-800">{item.name}</div>
-                                                            <div className="text-xs text-slate-500">{item.spec}</div>
-                                                        </td>
-                                                        <td className="px-4 py-2 text-center font-bold">{reqQty}</td>
-                                                        <td className="px-4 py-2 text-center text-slate-600">{stock}</td>
-                                                        <td className={`px-4 py-2 text-center font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {balance}
-                                                        </td>
-                                                    </tr>
-                                                );
+                                                return (<tr key={i}><td className="px-4 py-2"><div className="font-medium text-slate-800">{item.name}</div><div className="text-xs text-slate-500">{item.spec}</div></td><td className="px-4 py-2 text-center font-bold">{reqQty}</td><td className="px-4 py-2 text-center text-slate-600">{stock}</td><td className={`px-4 py-2 text-center font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{balance}</td></tr>);
                                             })}
                                         </tbody>
                                     </table>
@@ -1537,588 +1825,229 @@
                         </div>
                     )}
 
-                    <div className="print-only">
-                        {calculation && <PrintLayout data={{ ...calculation, clientName: client, projectName: project, margin }} currency='INR' exchangeRate={exchangeRate} />}
+                    {/* --- LEFT COLUMN (Inputs) --- */}
+                    <div className="lg:col-span-8 space-y-6">
+
+                        {/* 1. Project Specs Card */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <div className="bg-slate-50/50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Settings className="w-4 h-4 text-teal-600" /> Project Specs</h3>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleReset} className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded transition-colors mr-2 flex items-center gap-1"><RefreshCw size={10}/> Reset</button>
+                                    <div className="flex bg-slate-200 dark:bg-slate-700 rounded-lg p-0.5">
+                                        <button onClick={() => updateState('unit', 'm')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${unit === 'm' ? 'bg-white dark:bg-slate-600 shadow text-teal-600 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400'}`}>M</button>
+                                        <button onClick={() => updateState('unit', 'ft')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${unit === 'ft' ? 'bg-white dark:bg-slate-600 shadow text-teal-600 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400'}`}>FT</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Client & Project</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <input value={client} onChange={e => updateState('client', e.target.value)} placeholder="Client Name" className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all dark:text-white" />
+                                            <input value={project} onChange={e => updateState('project', e.target.value)} placeholder="Project Ref" className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all dark:text-white" />
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Application & Supply</label>
+                                        <div className="grid grid-cols-2 gap-3 mb-2">
+                                            <button onClick={() => { updateState('selectedIndoor', 'true'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${selectedIndoor === 'true' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Indoor</button>
+                                            <button onClick={() => { updateState('selectedIndoor', 'false'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${selectedIndoor === 'false' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Outdoor</button>
+                                        </div>
+                                         <div className="grid grid-cols-2 gap-3">
+                                            <button onClick={() => updateState('assemblyMode', 'assembled')} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${assemblyMode === 'assembled' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Assembled</button>
+                                            <button onClick={() => updateState('assemblyMode', 'ready')} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${assemblyMode === 'ready' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Ready Unit</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-100 dark:border-slate-600">
+                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Screen Dimensions</label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div><span className="text-[10px] text-slate-400 font-semibold block mb-1">WIDTH</span><input type="number" value={targetWidth} onChange={e => updateState('targetWidth', e.target.value)} className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md text-lg font-bold text-slate-800" /></div>
+                                        <div><span className="text-[10px] text-slate-400 font-semibold block mb-1">HEIGHT</span><input type="number" value={targetHeight} onChange={e => updateState('targetHeight', e.target.value)} className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md text-lg font-bold text-slate-800" /></div>
+                                        <div><span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold block mb-1">QTY</span><input type="number" min="0" value={screenQty} onChange={e => updateState('screenQty', Math.max(0, parseInt(e.target.value)) || 0)} className="w-full p-2 border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 rounded-md text-lg font-bold" /></div>
+                                    </div>
+                                    
+                                    <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
+                                        {['closest', 'up', 'down'].map(m => (
+                                            <button key={m} onClick={() => updateState('sizingMode', m)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border capitalize transition-colors ${sizingMode === m ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'}`}>{m === 'closest' ? 'Closest Match' : `Round ${m}`}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. Detailed Cost & Selection Table */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                            <details className="group p-4" open>
+                                <summary className="flex justify-between items-center cursor-pointer list-none">
+                                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                        <Box className="w-4 h-4 text-teal-600" /> Hardware & Cost Breakdown
+                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-teal-600 text-xs font-bold group-open:hidden">Show Table</span>
+                                        <span className="text-slate-400 text-xs hidden group-open:block">Hide Table</span>
+                                    </div>
+                                </summary>
+                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                     <InteractiveCostSheet 
+                                        calculation={calculation} 
+                                        state={state}
+                                        updateState={updateState}
+                                        updateExtra={updateExtra}
+                                        inventory={inventory}
+                                        getStock={getStock}
+                                        screenQty={screenQty} 
+                                        overrides={overrides} 
+                                        onOverride={handleOverride}
+                                        editingRow={editingRow}
+                                        setEditingRow={(id) => updateState('editingRow', id)}
+                                        onClearOverride={clearOverride}
+                                    />
+                                </div>
+                            </details>
+                        </div>
+
+                        {/* 4. Terms */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                            <details className="group p-4">
+                                <summary className="flex justify-between items-center cursor-pointer list-none">
+                                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Terms & Conditions</span>
+                                    <span className="text-teal-600 text-xs group-open:hidden">Show Details</span>
+                                </summary>
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Price Basis</label><input value={state.terms?.price} onChange={e => setState(p => ({...p, terms: {...p.terms, price: e.target.value}}))} className="w-full p-2 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
+                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Delivery Weeks</label><input type="number" value={state.terms?.deliveryWeeks} onChange={e => setState(p => ({...p, terms: {...p.terms, deliveryWeeks: e.target.value}}))} className="w-full p-2 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
+                                    <div className="col-span-1 md:col-span-2">
+                                         <label className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Payment Milestones</label>
+                                         {(state.terms?.payment || []).map((ms, idx) => (
+                                            <div key={idx} className="flex gap-2 mb-2">
+                                                <input value={ms.name} onChange={e => { const n = [...state.terms.payment]; n[idx].name = e.target.value; setState(p => ({...p, terms: {...p.terms, payment: n}})); }} className="flex-1 p-2 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="Milestone Name" />
+                                                <input type="number" value={ms.percent} onChange={e => { const n = [...state.terms.payment]; n[idx].percent = Number(e.target.value); setState(p => ({...p, terms: {...p.terms, payment: n}})); }} className="w-16 p-2 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="%" />
+                                                <button onClick={() => { const n = state.terms.payment.filter((_, i) => i !== idx); setState(p => ({...p, terms: {...p.terms, payment: n}})); }} className="text-red-400"><X size={14} /></button>
+                                            </div>
+                                         ))}
+                                         <button onClick={() => setState(p => ({...p, terms: {...p.terms, payment: [...(p.terms.payment || []), {name: '', percent: 0}]}}))} className="text-xs text-teal-600 font-bold">+ Add Milestone</button>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                        <div className="h-10"></div>
                     </div>
 
-                    {/* Left: Configuration */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Settings className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Project Specs</h3>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={handleReset} className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded transition-colors mr-1">Reset</button>
-                                    <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded px-2" title="Exchange rate for USD items">
-                                        <span className="text-[10px] text-slate-500 mr-1">1$ = ₹</span>
-                                        <input
-                                            type="number"
-                                            value={exchangeRate}
-                                            onChange={e => setExchangeRate(Number(e.target.value))}
-                                            className="w-10 bg-transparent text-xs py-1 outline-none font-bold dark:text-white"
-                                        />
+                    {/* --- RIGHT COLUMN (Sticky Sidebar) --- */}
+                    <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+                        
+                        {/* Financial Summary (Moved Up) */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <div className="p-5 bg-gradient-to-br from-slate-50 to-white dark:from-slate-700 dark:to-slate-800">
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Margin Strategy</label>
+                                    <select 
+                                        value={state.pricingMode || 'margin'} 
+                                        onChange={e => {
+                                            const newMode = e.target.value;
+                                            updateState('pricingMode', newMode);
+                                            if (newMode !== 'margin' && calculation) {
+                                                let newTarget = 0;
+                                                if (newMode === 'screen') newTarget = calculation.matrix.sell.unit;
+                                                else if (newMode === 'sqft') newTarget = calculation.matrix.sell.sqft;
+                                                else if (newMode === 'sqm') newTarget = calculation.matrix.sell.sqft * 10.7639;
+                                                updateState('targetSellPrice', Math.round(newTarget));
+                                            }
+                                        }}
+                                        className="text-xs border-none bg-transparent font-bold text-teal-600 dark:text-teal-400 focus:ring-0 cursor-pointer outline-none"
+                                    >
+                                        <option value="margin">Margin %</option>
+                                        <option value="sqft">Price / Sq.Ft</option>
+                                        <option value="sqm">Price / Sq.Mtr</option>
+                                        <option value="screen">Price / Screen</option>
+                                    </select>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 mb-6">
+                                    <input 
+                                        type="number" 
+                                        value={state.pricingMode === 'margin' ? margin : state.targetSellPrice}
+                                        onChange={e => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            if (state.pricingMode === 'margin') updateState('margin', val);
+                                            else updateState('targetSellPrice', val);
+                                        }}
+                                        className="w-24 text-center text-xl font-bold p-2 border rounded-lg bg-white dark:bg-slate-600 dark:border-slate-500 shadow-sm focus:ring-2 focus:ring-teal-500/50 outline-none dark:text-white" 
+                                    />
+                                    <span className="text-lg font-bold text-slate-400">{state.pricingMode === 'margin' ? '%' : ''}</span>
+                                    <div className="flex-1 text-right">
+                                         <div className="text-[10px] text-slate-400 uppercase font-bold">Est. Profit</div>
+                                         <div className={`text-sm font-bold ${profitColor}`}>
+                                             {calculation ? formatCurrency(calculation.matrix.margin.total, 'INR') : '-'}
+                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-600">
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-sm text-slate-500 dark:text-slate-400">LED Panel Price</span>
+                                        <span className="font-bold text-slate-800 dark:text-white">{calculation ? formatCurrency(calculation.matrix.led.sell * screenQty, 'INR') : '-'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-sm text-slate-500 dark:text-slate-400">Services & Extras</span>
+                                        <span className="font-bold text-slate-800 dark:text-white">
+                                            {calculation ? formatCurrency((calculation.matrix.sell.total - (calculation.matrix.led.sell * screenQty)), 'INR') : '-'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-end pt-2 mt-2 border-t border-dashed border-slate-200 dark:border-slate-600">
+                                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Rate / Sq.Ft</span>
+                                        <span className="font-bold text-slate-500 dark:text-slate-400">{calculation ? formatCurrency(calculation.matrix.sell.sqft, 'INR') : '-'}</span>
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <input value={client} onChange={e => updateState('client', e.target.value)} className="p-2 border rounded text-sm w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="Client Name" />
-                                <input value={project} onChange={e => updateState('project', e.target.value)} className="p-2 border rounded text-sm w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="Project Name" />
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-3 mb-4">
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-xs text-slate-500 dark:text-slate-400">Width</label>
-                                        <div className="flex text-[10px] bg-slate-100 dark:bg-slate-700 rounded p-0.5">
-                                            <button onClick={() => updateState('unit', 'm')} className={`px-1.5 rounded ${unit === 'm' ? 'bg-white dark:bg-slate-600 shadow text-slate-800 dark:text-white' : 'text-slate-400'}`}>m</button>
-                                            <button onClick={() => updateState('unit', 'ft')} className={`px-1.5 rounded ${unit === 'ft' ? 'bg-white dark:bg-slate-600 shadow text-slate-800 dark:text-white' : 'text-slate-400'}`}>ft</button>
-                                        </div>
-                                    </div>
-                                    <input type="number" value={targetWidth} onChange={e => updateState('targetWidth', e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                            
+                            <div className="bg-slate-900 p-5 text-white">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-sm text-slate-400">Grand Total (Ex. GST)</span>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-xs text-slate-500 dark:text-slate-400">Height</label>
-                                        <span className="text-[10px] text-slate-400 px-1 py-0.5">{unit}</span>
-                                    </div>
-                                    <input type="number" value={targetHeight} onChange={e => updateState('targetHeight', e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                                <div className="flex justify-between items-baseline">
+                                    <span className="text-3xl font-bold tracking-tight">{calculation ? formatCurrency(calculation.totalProjectSell, 'INR') : '-'}</span>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-xs text-slate-500 dark:text-slate-400 font-bold text-teal-600">Quantity</label>
-                                    </div>
-                                    <input type="number" min="1" value={screenQty} onChange={e => updateState('screenQty', Math.max(1, parseInt(e.target.value)) || 1)} className="w-full p-2 border border-teal-200 rounded text-sm dark:bg-slate-700 dark:border-teal-900 dark:text-white font-bold" />
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Sizing Mode</label>
-                                <div className="flex gap-1 mt-1 text-xs">
-                                    {['closest', 'up', 'down'].map(m => (
-                                        <button key={m} onClick={() => updateState('sizingMode', m)} className={`flex-1 py-2 rounded border capitalize ${sizingMode === m ? 'bg-teal-600 text-white border-teal-600' : 'bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white'}`}>{m === 'closest' ? 'Closest' : `Round ${m}`}</button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">1. Application</label>
-                                    <div className="flex gap-2 mt-1">
-                                        <button onClick={() => { updateState('selectedIndoor', 'true'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`flex-1 py-2 text-sm rounded border transition-colors ${selectedIndoor === 'true' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'}`}>Indoor</button>
-                                        <button onClick={() => { updateState('selectedIndoor', 'false'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`flex-1 py-2 text-sm rounded border transition-colors ${selectedIndoor === 'false' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'}`}>Outdoor</button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">2. Supply Type</label>
-                                    <div className="flex gap-2 mt-1">
-                                        <button onClick={() => updateState('assemblyMode', 'assembled')} className={`flex-1 py-2 text-sm rounded border transition-colors ${assemblyMode === 'assembled' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'}`}>Assembled</button>
-                                        <button onClick={() => updateState('assemblyMode', 'ready')} className={`flex-1 py-2 text-sm rounded border transition-colors ${assemblyMode === 'ready' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'}`}>Ready Cabinet</button>
-                                    </div>
-                                </div>
-
-                                {assemblyMode === 'assembled' ? (
-                                    <>
-                                        <div className="grid grid-cols-2 gap-2 mt-1">
-                                            <select value={selectedPitch} onChange={e => { updateState('selectedPitch', e.target.value); updateState('selectedModuleId', ''); }} className="p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                                                <option value="">Pitch...</option>
-                                                {uniquePitches.map(p => <option key={p} value={p}>P{p}</option>)}
-                                            </select>
-                                            <select value={selectedModuleId} onChange={e => updateState('selectedModuleId', e.target.value)} className="p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white" disabled={!selectedPitch}>
-                                                <option value="">Select Variant...</option>
-                                                {filteredModules.map(m => <option key={m.id} value={m.id}>{m.brand} {m.model}</option>)}
-                                            </select>
-                                        </div>
-                                        {selectedModule ? (
-                                            <select value={selectedCabinetId} onChange={e => updateState('selectedCabinetId', e.target.value)} className="w-full p-2 border rounded text-sm mt-1 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                                                <option value="">Select Cabinet...</option>
-                                                {cabinets.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({c.width}x{c.height})</option>)}
-                                            </select>
-                                        ) : (
-                                            <div className="text-xs text-amber-600 p-2 bg-amber-50 dark:bg-amber-900/20 rounded mt-1">Select a module first</div>
-                                        )}
-                                        <div className="space-y-2 mt-1">
-                                            <select value={selectedCardId} onChange={e => updateState('selectedCardId', e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Receiving Card...</option>{cards.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model}</option>)}</select>
-                                            <select value={selectedPSUId} onChange={e => updateState('selectedPSUId', e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">SMPS...</option>{psus.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model}</option>)}</select>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="mt-2">
-                                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Select Screen Model</label>
-                                        <select value={readyId} onChange={e => updateState('readyId', e.target.value)} className="w-full p-2 border rounded text-sm mt-1 dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                                            <option value="">Select Ready Unit...</option>
-                                            {readyUnits.map(u => <option key={u.id} value={u.id}>{u.brand} {u.model} (P{u.pitch})</option>)}
-                                        </select>
-                                    </div>
-                                )}
-                                <select value={selectedProcId} onChange={e => updateState('selectedProcId', e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Processor...</option>{processors.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model}</option>)}</select>
-                            </div>
-
-                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Extra Components</label>
-                                {(state.extraComponents || []).map((extra, idx) => (
-                                    <div key={extra.id} className="flex gap-2 mb-2 items-center">
-                                        <select 
-                                            className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white w-24"
-                                            value={extra.componentId}
-                                            onChange={e => {
-                                                const newExtras = [...state.extraComponents];
-                                                newExtras[idx].componentId = e.target.value;
-                                                updateState('extraComponents', newExtras);
-                                            }}
-                                        >
-                                            <option value="">Select...</option>
-                                            {['module', 'cabinet', 'ready', 'card', 'processor', 'psu'].map(type => {
-                                                const items = inventory.filter(i => i.type === type).sort((a,b) => (a.brand + ' ' + a.model).localeCompare(b.brand + ' ' + b.model));
-                                                if (items.length === 0) return null;
-                                                return (
-                                                    <optgroup key={type} label={type === 'psu' ? 'SMPS' : type.toUpperCase()}>
-                                                        {items.map(i => <option key={i.id} value={i.id}>{i.brand} {i.model}</option>)}
-                                                    </optgroup>
-                                                );
-                                            })}
-                                        </select>
-                                        <input 
-                                            type="number" 
-                                            className="w-12 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                            value={extra.qty}
-                                            onChange={e => {
-                                                const newExtras = [...state.extraComponents];
-                                                newExtras[idx].qty = Number(e.target.value);
-                                                updateState('extraComponents', newExtras);
-                                            }}
-                                        />
-                                        <select 
-                                            className="w-20 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                            value={extra.type}
-                                            onChange={e => {
-                                                const newExtras = [...state.extraComponents];
-                                                newExtras[idx].type = e.target.value;
-                                                updateState('extraComponents', newExtras);
-                                            }}
-                                        >
-                                            <option value="screen">/Screen</option>
-                                            <option value="cabinet">/Cab</option>
-                                        </select>
-                                        <button 
-                                            onClick={() => {
-                                                const newExtras = state.extraComponents.filter((_, i) => i !== idx);
-                                                updateState('extraComponents', newExtras);
-                                            }}
-                                            className="p-1 text-red-400 hover:text-red-600"
-                                        ><X size={14}/></button>
-                                    </div>
-                                ))}
-                                <button 
-                                    onClick={() => updateState('extraComponents', [...(state.extraComponents || []), { id: generateId(), componentId: '', qty: 1, type: 'screen' }])}
-                                    className="text-xs flex items-center gap-1 text-teal-600 font-bold hover:underline"
-                                >
-                                    <Plus size={12}/> Add Extra Component
+                                <button onClick={() => onSaveQuote(calculation?.totalProjectSell)} className="w-full mt-4 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg shadow-teal-900/20 transition-all flex justify-center items-center gap-2">
+                                    <Save size={18} /> Save Quote
                                 </button>
                             </div>
                         </div>
-                    </div>
 
-{/* Middle: Extras & Costs */}
-<div className="lg:col-span-4 space-y-6">
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Commercials & Overheads
-        </h3>
-
-        {/* REVISED: Commercials (Cost & Sell Grouped) */}
-        <div className="mb-6 bg-slate-50 dark:bg-slate-700/30 p-3 rounded border border-slate-200 dark:border-slate-600">
-            <div className="flex justify-between items-end mb-3">
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">Cost vs Sell</h4>
-                <div className="flex gap-4 text-[10px] uppercase font-bold text-slate-400 mr-2">
-                    <span className="w-24 text-center">Est. Cost</span>
-                    <span className="w-24 text-center">Selling Price</span>
-                </div>
-            </div>
-
-            <div className="space-y-3">
-                {/* 1. Processor (Cost is usually BOM based, so mostly Sell here) */}
-                <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold w-20">Processor</label>
-                    <div className="flex-1 flex gap-2 justify-end">
-                        <div className="w-full max-w-[140px] flex items-center justify-end text-xs text-slate-400 italic pr-2">
-                            (See BOM)
-                        </div>
-                        <div className="w-full max-w-[180px] flex items-center gap-1">
-                            <input 
-                                type="number" 
-                                className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
-                                value={state.commercials?.processor?.val} 
-                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, processor: {...p.commercials.processor, val: e.target.value}}}))} 
-                            />
-                            <select 
-                                className="w-16 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
-                                value={state.commercials?.processor?.unit} 
-                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, processor: {...p.commercials.processor, unit: e.target.value}}}))}
-                            >
-                                <option value="screen">/Scrn</option>
-                                <option value="unit">/Unit</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. Installation (Cost Input + Sell Input) */}
-                <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold w-20">Installation</label>
-                    <div className="flex-1 flex gap-2 justify-end">
-                        {/* Cost Input (Moved from Extras) */}
-                        <div className="w-full max-w-[140px] flex items-center">
-                            <input
-                                type="number"
-                                value={extras['install'].val}
-                                onChange={e => updateExtra('install', 'val', e.target.value)}
-                                className="w-full p-1.5 border rounded-l text-xs border-r-0 dark:bg-slate-700 dark:border-slate-500 dark:text-white"
-                                placeholder="Cost"
-                            />
-                            <button
-                                onClick={() => updateExtra('install', 'type', extras['install'].type === 'abs' ? 'pct' : 'abs')}
-                                className={`px-1.5 py-1.5 text-[10px] font-bold border rounded-r w-8 transition-colors dark:border-slate-500 ${extras['install'].type === 'pct' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-600 dark:text-slate-300'}`}
-                            >
-                                {extras['install'].type === 'abs' ? '₹' : '%'}
-                            </button>
+                        {/* Visualizer (Moved Down) */}
+                        <div className="bg-slate-900 rounded-xl shadow-lg p-6 text-white overflow-hidden relative min-h-[250px] flex items-center justify-center">
+                            {calculation ? (
+                                <div className="w-full h-full flex items-center justify-center p-4">
+                                    <ScreenVisualizer cols={calculation.gridCols} rows={calculation.gridRows} module={calculation.moduleType} cabinet={calculation.cabinetType} unit={unit} />
+                                </div>
+                            ) : (
+                                <div className="text-slate-500 flex flex-col items-center"><Monitor size={32} className="mb-2 opacity-50"/><span>Enter dimensions</span></div>
+                            )}
                         </div>
                         
-                        {/* Sell Input */}
-                        <div className="w-full max-w-[180px] flex items-center gap-1">
-                            <input 
-                                type="number" 
-                                className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
-                                value={state.commercials?.installation?.val} 
-                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, installation: {...p.commercials.installation, val: e.target.value}}}))} 
-                            />
-                            <select 
-                                className="w-16 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
-                                value={state.commercials?.installation?.unit} 
-                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, installation: {...p.commercials.installation, unit: e.target.value}}}))}
-                            >
-                                <option value="sqft">/Sft</option>
-                                <option value="screen">/Scrn</option>
-                            </select>
+                        <div className="grid grid-cols-3 gap-3">
+                             <button onClick={() => setShowBOM(true)} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex flex-col items-center justify-center gap-1 transition-colors">
+                                <FileText size={16} className="text-blue-500" /> <span className="text-[10px]">Cost Sheet</span>
+                             </button>
+                             <button onClick={() => setShowPreview(true)} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex flex-col items-center justify-center gap-1 transition-colors">
+                                <Printer size={16} /> <span className="text-[10px]">Print</span>
+                             </button>
+                             <button onClick={() => setShowStock(true)} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex flex-col items-center justify-center gap-1 transition-colors">
+                                <Box size={16} className="text-teal-500" /> <span className="text-[10px]">Stock</span>
+                             </button>
                         </div>
-                    </div>
-                </div>
-
-                {/* 3. Structure (Cost Input + Sell Input) */}
-                <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold w-20">Structure</label>
-                    <div className="flex-1 flex gap-2 justify-end">
-                        {/* Cost Input (Moved from Extras) */}
-                        <div className="w-full max-w-[140px] flex items-center">
-                            <input
-                                type="number"
-                                value={extras['structure'].val}
-                                onChange={e => updateExtra('structure', 'val', e.target.value)}
-                                className="w-full p-1.5 border rounded-l text-xs border-r-0 dark:bg-slate-700 dark:border-slate-500 dark:text-white"
-                                placeholder="Cost"
-                            />
-                            <button
-                                onClick={() => updateExtra('structure', 'type', extras['structure'].type === 'abs' ? 'pct' : 'abs')}
-                                className={`px-1.5 py-1.5 text-[10px] font-bold border rounded-r w-8 transition-colors dark:border-slate-500 ${extras['structure'].type === 'pct' ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-600 dark:text-slate-300'}`}
-                            >
-                                {extras['structure'].type === 'abs' ? '₹' : '%'}
-                            </button>
-                        </div>
-
-                        {/* Sell Input */}
-                        <div className="w-full max-w-[180px] flex items-center gap-1">
-                            <input 
-                                type="number" 
-                                className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
-                                value={state.commercials?.structure?.val} 
-                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, structure: {...p.commercials.structure, val: e.target.value}}}))} 
-                            />
-                            <select 
-                                className="w-16 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" 
-                                value={state.commercials?.structure?.unit} 
-                                onChange={e => setState(p => ({...p, commercials: {...p.commercials, structure: {...p.commercials.structure, unit: e.target.value}}}))}
-                            >
-                                <option value="sqft">/Sft</option>
-                                <option value="screen">/Scrn</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* REVISED: Terms & Conditions Inputs (No changes needed here, just kept for context) */}
-        <div className="mb-6 bg-slate-50 dark:bg-slate-700/30 p-3 rounded border border-slate-200 dark:border-slate-600">
-             {/* ... (Keep existing Terms code) ... */}
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-3">Terms & Conditions</h4>
-            <div className="space-y-3">
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500 dark:text-slate-400">Price Basis</label>
-                    <input className="w-full p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" value={state.terms?.price || ''} onChange={e => setState(p => ({...p, terms: {...p.terms, price: e.target.value}}))} />
-                </div>
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500 dark:text-slate-400">Delivery (Weeks)</label>
-                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                        <span>Within</span>
-                        <input type="number" className="w-12 p-1.5 border rounded text-center dark:bg-slate-700 dark:border-slate-500 dark:text-white font-bold" value={state.terms?.deliveryWeeks || 0} onChange={e => setState(p => ({...p, terms: {...p.terms, deliveryWeeks: e.target.value}}))} />
-                        <span>weeks from advance</span>
-                    </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 flex justify-between">
-                        <span>Payment Milestones</span>
-                        <button onClick={() => setState(p => ({...p, terms: {...p.terms, payment: [...(p.terms.payment || []), {name: '', percent: 0}]}}))} className="text-teal-600 hover:underline font-bold">+ Add</button>
-                    </label>
-                    {(state.terms?.payment || []).map((ms, idx) => (
-                        <div key={idx} className="flex gap-1 items-center">
-                            <input placeholder="Name" className="flex-1 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white" value={ms.name} onChange={e => {
-                                const newPay = [...state.terms.payment];
-                                newPay[idx].name = e.target.value;
-                                setState(p => ({...p, terms: {...p.terms, payment: newPay}}));
-                            }} />
-                            <input type="number" placeholder="%" className="w-10 p-1.5 border rounded text-xs dark:bg-slate-700 dark:border-slate-500 dark:text-white text-center" value={ms.percent} onChange={e => {
-                                const newPay = [...state.terms.payment];
-                                newPay[idx].percent = Number(e.target.value);
-                                setState(p => ({...p, terms: {...p.terms, payment: newPay}}));
-                            }} />
-                            <span className="text-xs text-slate-400">%</span>
-                            <button onClick={() => {
-                                const newPay = state.terms.payment.filter((_, i) => i !== idx);
-                                setState(p => ({...p, terms: {...p.terms, payment: newPay}}));
-                            }} className="text-red-400 hover:text-red-600 p-1"><X size={12}/></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-
-        {/* REVISED: Other Costs Grid (Removed Structure and Install from here) */}
-        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-2">Operational Costs</h4>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-            <ExtraInput label="Hardware & Cables" fieldKey="hardware" extras={extras} updateExtra={updateExtra} currency='INR' />
-            <ExtraInput label="Assembly Labour" fieldKey="assembly" extras={extras} updateExtra={updateExtra} currency='INR' />
-            <ExtraInput label="Packaging" fieldKey="packaging" extras={extras} updateExtra={updateExtra} currency='INR' />
-            <ExtraInput label="Transport" fieldKey="transport" extras={extras} updateExtra={updateExtra} currency='INR' />
-            {/* Removed Install Labour */}
-            <ExtraInput label="Wastage / Buffer" fieldKey="wastage" extras={extras} updateExtra={updateExtra} currency='INR' />
-            <ExtraInput label="Operational Overheads" fieldKey="overheads" extras={extras} updateExtra={updateExtra} currency='INR' />
-        </div>
-
-        {/* ... (Keep existing Financial Matrix / Total table) ... */}
-        {calculation && (
-             <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
-                {/* ... existing table code ... */}
-                <div className="mb-4 overflow-x-auto">
-                    <table className="w-full text-xs text-slate-600 dark:text-slate-300">
-                        {/* ... table content same as before ... */}
-                        <thead>
-                            <tr className="border-b border-slate-200 dark:border-slate-600">
-                                <th className="text-left pb-1">Item</th>
-                                <th className="text-right pb-1">Rate</th>
-                                <th className="text-center pb-1 border-l border-slate-200 dark:border-slate-700 px-1">Qty(1)</th>
-                                <th className="text-right pb-1">Amt(1)</th>
-                                <th className="text-center pb-1 border-l border-slate-200 dark:border-slate-700 px-1 font-bold">Qty({screenQty})</th>
-                                <th className="text-right pb-1 font-bold">Amt({screenQty})</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {calculation.detailedItems.map((item, i) => (
-                                <tr key={i} className={`border-b border-slate-100 dark:border-slate-700/50 ${item.isOverridden ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
-                                    <td className="py-2 flex items-center gap-1">
-                                        {item.name}
-                                        <button onClick={() => toggleEditRow(item.id)} className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 ${item.isOverridden ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500'}`}>
-                                            <Edit size={12} />
-                                        </button>
-                                        {item.isOverridden && (
-                                            <button onClick={() => clearOverride(item.id)} className="p-1 text-slate-400 hover:text-red-500" title="Reset to calculated"><RefreshCw size={12} /></button>
-                                        )}
-                                    </td>
-                                    <td className="text-right py-2">
-                                        {editingRow === item.id ? (
-                                            <input
-                                                type="number"
-                                                className="w-16 p-1 text-right text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
-                                                value={overrides[item.id]?.rate !== undefined ? overrides[item.id].rate : item.unit}
-                                                onChange={e => handleOverride(item.id, 'rate', e.target.value)}
-                                            />
-                                        ) : (
-                                            formatCurrency(item.unit, 'INR', false)
-                                        )}
-                                    </td>
-                                    <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700">
-                                        {editingRow === item.id ? (
-                                            <input
-                                                type="number"
-                                                className="w-12 p-1 text-center text-xs border rounded dark:bg-slate-700 dark:border-slate-500"
-                                                value={overrides[item.id]?.qty !== undefined ? overrides[item.id].qty : item.qty}
-                                                onChange={e => handleOverride(item.id, 'qty', e.target.value)}
-                                            />
-                                        ) : (
-                                            item.qty
-                                        )}
-                                    </td>
-                                    <td className="text-right py-2">{formatCurrency(item.total, 'INR', false)}</td>
-                                    <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 font-bold">
-                                        {item.qty * screenQty}
-                                    </td>
-                                    <td className="text-right py-2 font-bold">
-                                        {formatCurrency(item.total * screenQty, 'INR', false)}
-                                    </td>
-                                </tr>
-                            ))}
-                            <tr>
-                                <td colSpan="2" className="text-right font-medium py-2 text-xs text-slate-400 uppercase">Add. Costs</td>
-                                <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 text-slate-400">-</td>
-                                <td className="text-right font-medium py-2 text-slate-400">{formatCurrency(calculation.breakdown.extras, 'INR', false)}</td>
-                                <td className="text-center py-2 border-l border-slate-100 dark:border-slate-700 font-bold text-slate-400">-</td>
-                                <td className="text-right font-bold py-2 text-slate-400">{formatCurrency(calculation.breakdown.extras * screenQty, 'INR', false)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pricing Mode & Margin Inputs */}
-                <div className="bg-teal-50 dark:bg-teal-900/30 p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-2 gap-2">
-                        <select 
-                            value={state.pricingMode || 'margin'} 
-                            onChange={e => {
-                                const newMode = e.target.value;
-                                updateState('pricingMode', newMode);
-                                if (newMode !== 'margin' && calculation) {
-                                    let newTarget = 0;
-                                    if (newMode === 'screen') newTarget = calculation.matrix.sell.unit;
-                                    else if (newMode === 'sqft') newTarget = calculation.matrix.sell.sqft;
-                                    else if (newMode === 'sqm') newTarget = calculation.matrix.sell.sqft * 10.7639;
-                                    updateState('targetSellPrice', Math.round(newTarget));
-                                }
-                            }}
-                            className="bg-teal-100 text-teal-800 dark:bg-teal-800 dark:text-teal-200 text-xs font-bold p-1 rounded border-none cursor-pointer focus:ring-0"
-                        >
-                            <option value="margin">Margin %</option>
-                            <option value="sqft">Price / Sq.Ft</option>
-                            <option value="sqm">Price / Sq.Mtr</option>
-                            <option value="screen">Price / Screen</option>
-                        </select>
-                    </div>
-                    <input 
-                        type="number" 
-                        className="w-full p-2 text-sm border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white font-bold"
-                        value={state.pricingMode === 'margin' ? margin : state.targetSellPrice}
-                        onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
-                            const mode = state.pricingMode || 'margin';
-                            if (mode === 'margin') {
-                                updateState('margin', val);
-                            } else {
-                                updateState('targetSellPrice', val);
-                            }
-                        }}
-                    />
-                    {(state.pricingMode && state.pricingMode !== 'margin' && calculation) && (
-                        <div className="text-right mt-1">
-                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-                                = {(((calculation.totalProjectSell - calculation.totalProjectCost) / calculation.totalProjectCost) * 100 || 0).toFixed(2)}% Margin
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Financial Matrix UI */}
-                                    <div className="mt-4 border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-slate-100 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-300">
-                                                <tr>
-                                                    <th className="p-2 text-left">Component</th>
-                                                    <th className="p-2 text-right">Cost (Unit)</th>
-                                                    <th className="p-2 text-right">Margin</th>
-                                                    <th className="p-2 text-right">Sell (Unit)</th>
-                                                    <th className="p-2 text-right bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200">Total Project</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700 dark:text-slate-200">
-                                                {/* LED Panel Row - The Core Focus */}
-                                                <tr>
-                                                    <td className="p-2 font-bold text-slate-700 dark:text-slate-200">LED Panel (H/W)</td>
-                                                    <td className="p-2 text-right">{formatCurrency(calculation.matrix.led.cost, 'INR', false)}</td>
-                                                    <td className="p-2 text-right text-green-600">
-                                                        {formatCurrency(calculation.matrix.led.margin, 'INR', false)} <span className="text-[10px] text-slate-400">({calculation.matrix.led.marginPct.toFixed(1)}%)</span>
-                                                    </td>
-                                                    <td className="p-2 text-right font-bold">{formatCurrency(calculation.matrix.led.sell, 'INR', false)}</td>
-                                                    <td className="p-2 text-right text-slate-400">{formatCurrency(calculation.matrix.led.sell * screenQty, 'INR', false)}</td>
-                                                </tr>
-                                                
-                                                {/* Services Row */}
-                                                <tr>
-                                                    <td className="p-2 font-medium text-slate-500">Services (Install/Str/Proc)</td>
-                                                    <td className="p-2 text-right text-slate-500">{formatCurrency(calculation.costServicesPerScreen, 'INR', false)}</td>
-                                                    <td className="p-2 text-right text-slate-400">-</td>
-                                                    <td className="p-2 text-right text-slate-500">{formatCurrency(calculation.commercials.sellProcTotal/screenQty + calculation.commercials.sellInstallTotal/screenQty + calculation.commercials.sellStructureTotal/screenQty, 'INR', false)}</td>
-                                                    <td className="p-2 text-right text-slate-400">{formatCurrency(calculation.commercials.sellProcTotal + calculation.commercials.sellInstallTotal + calculation.commercials.sellStructureTotal, 'INR', false)}</td>
-                                                </tr>
-
-                                                {/* Grand Total Row */}
-                                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-t-2 border-slate-200 dark:border-slate-600">
-                                                    <td className="p-2 font-bold uppercase text-teal-800 dark:text-teal-400">Grand Total</td>
-                                                    <td className="p-2 text-right font-medium">{formatCurrency(calculation.matrix.cost.unit, 'INR', false)}</td>
-                                                    <td className="p-2 text-right font-medium text-green-600">{formatCurrency(calculation.matrix.margin.unit, 'INR', false)}</td>
-                                                    <td className="p-2 text-right font-bold">{formatCurrency(calculation.matrix.sell.unit, 'INR', false)}</td>
-                                                    <td className="p-2 text-right font-bold text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40">{formatCurrency(calculation.matrix.sell.total, 'INR', false)}</td>
-                                                </tr>
-                                                
-                                                {/* Stats Row */}
-                                                <tr>
-                                                    <td className="p-2 text-[10px] text-slate-400" colSpan="5">
-                                                        Area: {calculation.matrix.sqft.total.toFixed(2)} Sq.Ft • 
-                                                        Avg Rate: {formatCurrency(calculation.matrix.sell.total / calculation.matrix.sqft.total, 'INR')}/Sq.Ft
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-             </div>
-        )}
-    </div>
-</div>
-
-                    {/* Right: Visualizer & Actions */}
-                    <div className="lg:col-span-4 space-y-6">
-                        {calculation ? (
-                            <div className="space-y-6">
-                                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                                    <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><Monitor className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Layout</h3>
-                                    <ScreenVisualizer cols={calculation.gridCols} rows={calculation.gridRows} module={calculation.moduleType} cabinet={calculation.cabinetType} unit={unit} />
-
-                                    <div className="grid grid-cols-2 gap-2 mt-4">
-                                        <div className="col-span-2 flex gap-2 mb-2">
-                                            <button onClick={() => setShowStock(true)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-2 rounded flex items-center justify-center gap-2 font-bold text-sm transition-colors">
-                                                <Box size={16} /> Check Stock
-                                            </button>
-                                            <button onClick={() => setShowBOM(true)} className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2 rounded flex items-center justify-center gap-2 font-bold text-sm transition-colors">
-                                                <FileText size={16} /> View BOM
-                                            </button>
-                                        </div>
-                                        <button onClick={() => onSaveQuote(calculation.finalPrice)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded flex items-center justify-center gap-2 shadow-sm font-semibold transition-colors">
-                                            <Save size={16} /> Save Quote
-                                        </button>
-                                        <button onClick={() => setShowPreview(true)} className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-3 rounded flex items-center justify-center gap-2 shadow-sm font-semibold transition-colors">
-                                            <Eye size={16} /> Preview PDF
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 min-h-[300px]">
-                                <Calculator className="w-12 h-12 mb-4 opacity-30" />
-                                <p>Enter details to see preview</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             );
         };
 
-        // --- Main App ---
+        // 6. Main App
         const App = () => {
             const [user, setUser] = React.useState(null);
             const [view, setView] = React.useState('quote');
@@ -2127,13 +2056,13 @@
             const [darkMode, setDarkMode] = React.useState(false);
             const [exchangeRate, setExchangeRate] = React.useState(84);
 
-            // Lifted State for Sticky Behavior
+            // Initial State
             const initialCalcState = {
-                client: '', project: '', screenQty: 1, targetWidth: 3, targetHeight: 2, unit: 'ft', // Changed default to ft
+                client: '', project: '', screenQty: 0, targetWidth: 0, targetHeight: 0, unit: 'm',
                 selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
                 selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
                 selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
-                margin: 30, targetSellPrice: 0,
+                margin: 0, targetSellPrice: 0, pricingMode: 'margin',
                 commercials: { 
                     processor: {val: 0, unit: 'screen'}, 
                     installation: {val: 0, unit: 'sqft'}, 
@@ -2151,12 +2080,12 @@
                 extraComponents: [],
                 extras: {
                     assembly: { val: 0, type: 'abs' },
-                    hardware: { val: 5000, type: 'abs' },
-                    packaging: { val: 2000, type: 'abs' },
-                    transport: { val: 5000, type: 'abs' },
-                    install: { val: 10000, type: 'abs' },
-                    wastage: { val: 2000, type: 'abs' },
-                    overheads: { val: 5000, type: 'abs' },
+                    hardware: { val: 0, type: 'abs' },
+                    packaging: { val: 0, type: 'abs' },
+                    transport: { val: 0, type: 'abs' },
+                    install: { val: 0, type: 'abs' },
+                    wastage: { val: 0, type: 'abs' },
+                    overheads: { val: 0, type: 'abs' },
                     structure: { val: 0, type: 'abs' }
                 },
                 overrides: {},
@@ -2219,22 +2148,36 @@
             if (!user) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>;
 
             return (
-                <div className="min-h-screen no-print pb-20 bg-slate-50 dark:bg-slate-900 transition-colors">
-                    <nav className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50 px-6 h-16 flex items-center justify-between shadow-sm transition-colors">
-                        <span className="font-bold text-lg text-slate-900 dark:text-white">ADMIRE <span className="text-teal-600 dark:text-teal-400 font-light">SIGNAGE</span></span>
-                        <div className="flex gap-4 items-center">
-                            <div className="flex gap-2">
-                                <button onClick={() => setView('quote')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'quote' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Calculator</button>
-                                <button onClick={() => setView('inventory')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'inventory' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Components</button>
-                                <button onClick={() => setView('ledger')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'ledger' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Inventory</button>
-                                <button onClick={() => setView('saved')} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${view === 'saved' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Saved Quotes</button>
+                <div className="min-h-screen no-print pb-20 bg-slate-50 dark:bg-slate-900 transition-colors font-sans">
+                    <nav className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50 px-4 md:px-6 h-16 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-teal-50 dark:bg-teal-900/30 p-2 rounded-lg">
+                                <Calculator className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                             </div>
-                            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors">
-                                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                            </button>
+                            <span className="font-bold text-lg tracking-tight text-slate-900 dark:text-white">ADMIRE <span className="text-teal-600 dark:text-teal-400 font-medium">SIGNAGE</span></span>
+                        </div>
+                        
+                        <div className="flex gap-4 items-center">
+                            <div className="hidden md:flex gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+                                <button onClick={() => setView('quote')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${view === 'quote' ? 'bg-white dark:bg-slate-600 shadow-sm text-teal-600 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}>Calculator</button>
+                                <button onClick={() => setView('inventory')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'inventory' ? 'bg-white dark:bg-slate-600 shadow-sm text-teal-600 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}>Inventory</button>
+                                <button onClick={() => setView('ledger')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'ledger' ? 'bg-white dark:bg-slate-600 shadow-sm text-teal-600 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}>Stock</button>
+                                <button onClick={() => setView('saved')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'saved' ? 'bg-white dark:bg-slate-600 shadow-sm text-teal-600 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}>Quotes</button>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 pl-4 border-l border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded px-2 py-1" title="Exchange rate for USD items">
+                                    <span className="text-[10px] text-slate-500 font-bold mr-1">$1=</span>
+                                    <input type="number" value={exchangeRate} onChange={e => setExchangeRate(Number(e.target.value))} className="w-8 bg-transparent text-xs outline-none font-bold dark:text-white" />
+                                </div>
+                                <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors">
+                                    {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+                                </button>
+                            </div>
                         </div>
                     </nav>
-                    <main className="max-w-[1600px] mx-auto p-6">
+
+                    <main className="max-w-[1600px] mx-auto p-4 md:p-6">
                         {view === 'inventory' && <InventoryManager user={user} transactions={transactions} />}
                         {view === 'ledger' && <InventoryLedger user={user} inventory={inventory} transactions={transactions} />}
                         {view === 'saved' && <SavedQuotesManager user={user} inventory={inventory} transactions={transactions} exchangeRate={exchangeRate} onLoadQuote={handleLoadQuote} />}
@@ -2251,6 +2194,17 @@
                             />
                         )}
                     </main>
+
+                    {/* Mobile Bottom Bar for Price */}
+                    <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 lg:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 flex items-center gap-4">
+                        <div className="flex-1">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Total Estimate</div>
+                            <div className="text-xl font-bold text-slate-900 dark:text-white">
+                                {calcState.project && formatCurrency(calculateBOM(calcState, inventory, transactions, exchangeRate)?.totalProjectSell || 0, 'INR')}
+                            </div>
+                        </div>
+                        <button onClick={() => document.querySelector('main').scrollIntoView({behavior: 'smooth'})} className="px-6 py-2.5 bg-teal-600 text-white rounded-lg font-bold shadow-lg shadow-teal-600/30">Top</button>
+                    </div>
                 </div>
             );
         };
