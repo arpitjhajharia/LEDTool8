@@ -1008,19 +1008,24 @@
             );
         };
 
-        // 6. BOM Layout
+      // 6. BOM Layout
         const BOMLayout = ({ data }) => {
             if (!data) return null;
-            const { clientName, projectName, detailedItems, screenQty } = data;
+            const { clientName, projectName, detailedItems, screenQty, moduleType, cabinetType, finalWidth, finalHeight } = data;
 
             return (
                 <div className="p-8 max-w-[210mm] mx-auto bg-white min-h-screen text-slate-800 print:p-0 print:w-full font-sans text-xs">
                     <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
                         <div>
                             <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">Bill of Materials</h1>
-                            <div className="mt-2">
+                            <div className="mt-2 space-y-1">
                                 <p className="text-sm font-bold text-slate-700">Project: <span className="font-normal">{projectName}</span></p>
                                 <p className="text-sm font-bold text-slate-700">Client: <span className="font-normal">{clientName}</span></p>
+                                {moduleType && (
+                                    <p className="text-sm font-bold text-slate-700">
+                                        Specs: <span className="font-normal">P{moduleType.pitch} {moduleType.indoor ? 'Indoor' : 'Outdoor'} • {finalWidth}m x {finalHeight}m • Qty: {screenQty}</span>
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <div className="text-right">
@@ -1029,24 +1034,55 @@
                         </div>
                     </div>
 
-                    <table className="w-full border-collapse border border-slate-300">
+                    <table className="w-full border-collapse border border-slate-300 text-[10px]">
                         <thead className="bg-slate-100 text-slate-700">
                             <tr>
-                                <th className="p-2 border border-slate-300 text-left w-12">#</th>
-                                <th className="p-2 border border-slate-300 text-left">Component</th>
-                                <th className="p-2 border border-slate-300 text-left">Specification / Model</th>
-                                <th className="p-2 border border-slate-300 text-center w-24">Total Qty</th>
+                                <th className="p-2 border border-slate-300 text-left w-10">#</th>
+                                <th className="p-2 border border-slate-300 text-left w-32">Component</th>
+                                <th className="p-2 border border-slate-300 text-left">Specification / Details</th>
+                                <th className="p-2 border border-slate-300 text-center w-16">Qty/Scrn</th>
+                                <th className="p-2 border border-slate-300 text-center w-16">Total Qty</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {detailedItems.map((item, i) => (
-                                <tr key={i}>
-                                    <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
-                                    <td className="p-2 border border-slate-300 font-bold">{item.name}</td>
-                                    <td className="p-2 border border-slate-300">{item.spec}</td>
-                                    <td className="p-2 border border-slate-300 text-center font-bold">{item.qty * screenQty}</td>
-                                </tr>
-                            ))}
+                            {detailedItems.map((item, i) => {
+                                let extraSpecs = null;
+                                if (item.id === 'modules' && moduleType) {
+                                    extraSpecs = (
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] text-slate-500">
+                                            <span>Size: {moduleType.width}x{moduleType.height}mm</span>
+                                            <span>LED: {moduleType.ledType || '-'}</span>
+                                            <span>Bright: {moduleType.brightness} nits</span>
+                                            <span>Ref: {moduleType.refreshRate} Hz</span>
+                                            <span>Ang: {moduleType.viewAngleH}/{moduleType.viewAngleV}</span>
+                                            <span>IP: {moduleType.ipFront}/{moduleType.ipBack}</span>
+                                            <span>Pwr: {moduleType.avgPower}/{moduleType.maxPower} W</span>
+                                            <span>Wt: {moduleType.weight} kg</span>
+                                        </div>
+                                    );
+                                }
+                                if (item.id === 'cabinets' && cabinetType) {
+                                    extraSpecs = (
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] text-slate-500">
+                                            <span>Size: {cabinetType.width}x{cabinetType.height}mm</span>
+                                            <span>Mat: {cabinetType.material}</span>
+                                            <span>Weight: {cabinetType.weight} kg</span>
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <tr key={i}>
+                                        <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
+                                        <td className="p-2 border border-slate-300 font-bold align-top">{item.name}</td>
+                                        <td className="p-2 border border-slate-300 align-top">
+                                            <div className="font-semibold">{item.spec}</div>
+                                            {extraSpecs}
+                                        </td>
+                                        <td className="p-2 border border-slate-300 text-center align-top">{item.qty}</td>
+                                        <td className="p-2 border border-slate-300 text-center font-bold align-top">{item.qty * screenQty}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                     
@@ -1177,6 +1213,18 @@
                             unit: getPriceInInr(invItem),
                             total: extraQty * getPriceInInr(invItem),
                             type: invItem.type === 'processor' ? 'service' : 'led' // Categorize extra components
+                        });
+                    } else {
+                        // Show placeholder for newly added (empty) extras
+                        rawItems.push({
+                            id: extra.id,
+                            inventoryId: '',
+                            name: 'Extra Component',
+                            spec: 'Select Item...',
+                            qty: extra.qty || 1,
+                            unit: 0,
+                            total: 0,
+                            type: 'led'
                         });
                     }
                 });
@@ -1474,7 +1522,17 @@
                         <div className="flex gap-1 items-center">
                             <select value={state.extraComponents[extraIdx].componentId} onChange={e => { const n = [...state.extraComponents]; n[extraIdx].componentId = e.target.value; updateState('extraComponents', n); }} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
                                 <option value="">Select...</option>
-                                {inventory.filter(i => ['module', 'card', 'psu', 'cabinet'].includes(i.type)).map(i => <option key={i.id} value={i.id}>{i.brand} {i.model}</option>)}
+                                {['module', 'cabinet', 'card', 'psu'].map(type => {
+                                    const items = inventory.filter(i => i.type === type).sort((a,b) => (a.brand + ' ' + a.model).localeCompare(b.brand + ' ' + b.model));
+                                    if (items.length === 0) return null;
+                                    return (
+                                        <optgroup key={type} label={type === 'psu' ? 'SMPS' : type.toUpperCase()}>
+                                            {items.map(i => (
+                                                <option key={i.id} value={i.id}>{i.brand} {i.model}</option>
+                                            ))}
+                                        </optgroup>
+                                    );
+                                })}
                             </select>
                             <select value={state.extraComponents[extraIdx].type} onChange={e => { const n = [...state.extraComponents]; n[extraIdx].type = e.target.value; updateState('extraComponents', n); }} className="w-16 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="screen">/Scrn</option><option value="cabinet">/Cab</option></select>
                             <button type="button" onClick={() => updateState('extraComponents', state.extraComponents.filter((_, i) => i !== extraIdx))} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
@@ -1750,40 +1808,15 @@
                             <div className="bg-white dark:bg-slate-900 max-w-5xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
                                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
                                     <div className="flex items-center gap-4">
-                                        <h2 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2"><FileText size={20} className="text-teal-600"/> Cost Sheet</h2>
-                                        <div className="flex bg-slate-200 dark:bg-slate-700 rounded p-1">
-                                            <button onClick={() => setBomTab('interactive')} className={`px-3 py-1 text-xs font-bold rounded ${bomTab === 'interactive' ? 'bg-white dark:bg-slate-600 shadow text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-slate-400'}`}>Interactive Table</button>
-                                            <button onClick={() => setBomTab('print')} className={`px-3 py-1 text-xs font-bold rounded ${bomTab === 'print' ? 'bg-white dark:bg-slate-600 shadow text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-slate-400'}`}>Print Layout</button>
-                                        </div>
+                                        <h2 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2"><FileText size={20} className="text-teal-600"/> Cost Sheet (BOM)</h2>
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => setShowBOM(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-sm font-bold">Close</button>
                                         <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-700 rounded flex items-center gap-2 text-sm font-bold"><Printer size={16}/> Print</button>
                                     </div>
                                 </div>
-                                <div className="flex-1 overflow-auto bg-white dark:bg-slate-900 p-0">
-                                    {bomTab === 'interactive' ? (
-                                        <div className="p-6">
-                                            <InteractiveCostSheet 
-                                                calculation={calculation} 
-                                                state={state}
-                                                updateState={updateState}
-                                                updateExtra={updateExtra}
-                                                inventory={inventory}
-                                                getStock={getStock}
-                                                screenQty={screenQty} 
-                                                overrides={overrides} 
-                                                onOverride={handleOverride}
-                                                editingRow={editingRow}
-                                                setEditingRow={(id) => updateState('editingRow', id)}
-                                                onClearOverride={clearOverride}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="p-8 bg-slate-100 dark:bg-slate-800 min-h-full flex justify-center">
-                                            <BOMLayout data={{...calculation, clientName: client, projectName: project}} />
-                                        </div>
-                                    )}
+                                <div className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-800 p-8 flex justify-center">
+                                    <BOMLayout data={{...calculation, clientName: client, projectName: project}} />
                                 </div>
                             </div>
                         </div>
@@ -2040,7 +2073,7 @@
                         
                         <div className="grid grid-cols-3 gap-3">
                              <button onClick={() => setShowBOM(true)} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex flex-col items-center justify-center gap-1 transition-colors">
-                                <FileText size={16} className="text-blue-500" /> <span className="text-[10px]">Cost Sheet</span>
+                                <FileText size={16} className="text-blue-500" /> <span className="text-[10px]">BOM</span>
                              </button>
                              <button onClick={() => setShowPreview(true)} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex flex-col items-center justify-center gap-1 transition-colors">
                                 <Printer size={16} /> <span className="text-[10px]">Print</span>
