@@ -1150,10 +1150,17 @@
                 ];
                 totalModules = totalCabinetsPerScreen;
             }
-            if (proc) {
-                // Processor is NOT type 'led', it is 'service' or 'other'
-                rawItems.push({ id: 'processor', inventoryId: selectedProcId, name: 'Processor', spec: proc.brand, qty: 1, unit: getPriceInInr(proc), total: getPriceInInr(proc), type: 'service' });
-            }
+            // Always include processor row so it remains visible in the Cost Sheet UI
+            rawItems.push({ 
+                id: 'processor', 
+                inventoryId: selectedProcId, 
+                name: 'Processor', 
+                spec: proc ? proc.brand : 'Select Processor', 
+                qty: 1, 
+                unit: proc ? getPriceInInr(proc) : 0, 
+                total: proc ? getPriceInInr(proc) : 0, 
+                type: 'service' 
+            });
 
             // Add Extra Components
             if (extraComponents && extraComponents.length > 0) {
