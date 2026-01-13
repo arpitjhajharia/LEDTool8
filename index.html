@@ -1008,90 +1008,235 @@
             );
         };
 
-      // 6. BOM Layout
-        const BOMLayout = ({ data }) => {
-            if (!data) return null;
-            const { clientName, projectName, detailedItems, screenQty, moduleType, cabinetType, finalWidth, finalHeight } = data;
-
-            return (
-                <div className="p-8 max-w-[210mm] mx-auto bg-white min-h-screen text-slate-800 print:p-0 print:w-full font-sans text-xs">
-                    <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">Bill of Materials</h1>
-                            <div className="mt-2 space-y-1">
-                                <p className="text-sm font-bold text-slate-700">Project: <span className="font-normal">{projectName}</span></p>
-                                <p className="text-sm font-bold text-slate-700">Client: <span className="font-normal">{clientName}</span></p>
-                                {moduleType && (
-                                    <p className="text-sm font-bold text-slate-700">
-                                        Specs: <span className="font-normal">P{moduleType.pitch} {moduleType.indoor ? 'Indoor' : 'Outdoor'} • {finalWidth}m x {finalHeight}m • Qty: {screenQty}</span>
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm font-bold text-slate-700">REF: {generateId()}</p>
-                            <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
+      // 6. BOM Layout - Updated for Multi-Screen Support
+const BOMLayout = ({ data, allScreensData }) => {
+    if (!data && !allScreensData) return null;
+    
+    // If multi-screen data exists, use that; otherwise fall back to single screen
+    const isMultiScreen = allScreensData && allScreensData.calculations && allScreensData.calculations.length > 1;
+    
+    if (!isMultiScreen && !data) return null;
+    
+    const clientName = data?.clientName || '';
+    const projectName = data?.projectName || '';
+    
+    // Helper to render a single screen's BOM table
+    const renderScreenBOM = (calc, screenIndex, screenConfig) => {
+        const { detailedItems, screenQty, moduleType, cabinetType, finalWidth, finalHeight } = calc;
+        
+        return (
+            <div key={screenIndex} className="mb-8 break-inside-avoid">
+                {isMultiScreen && (
+                    <div className="bg-teal-50 dark:bg-teal-900/20 p-3 rounded-lg mb-3 border border-teal-200 dark:border-teal-800">
+                        <h3 className="font-bold text-teal-800 dark:text-teal-300 text-sm">
+                            Screen Configuration #{screenIndex + 1}
+                        </h3>
+                        <div className="grid grid-cols-4 gap-2 mt-2 text-xs text-teal-700 dark:text-teal-400">
+                            <div><span className="font-semibold">Target:</span> {screenConfig.targetWidth}×{screenConfig.targetHeight}{screenConfig.unit || 'm'}</div>
+                            <div><span className="font-semibold">Final:</span> {finalWidth}m × {finalHeight}m</div>
+                            <div><span className="font-semibold">Quantity:</span> {screenQty} screens</div>
+                            {moduleType && <div><span className="font-semibold">Pitch:</span> P{moduleType.pitch}</div>}
                         </div>
                     </div>
-
-                    <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                        <thead className="bg-slate-100 text-slate-700">
-                            <tr>
-                                <th className="p-2 border border-slate-300 text-left w-10">#</th>
-                                <th className="p-2 border border-slate-300 text-left w-32">Component</th>
-                                <th className="p-2 border border-slate-300 text-left">Specification / Details</th>
-                                <th className="p-2 border border-slate-300 text-center w-16">Qty/Scrn</th>
-                                <th className="p-2 border border-slate-300 text-center w-16">Total Qty</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {detailedItems.map((item, i) => {
-                                let extraSpecs = null;
-                                if (item.id === 'modules' && moduleType) {
-                                    extraSpecs = (
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] text-slate-500">
-                                            <span>Size: {moduleType.width}x{moduleType.height}mm</span>
-                                            <span>LED: {moduleType.ledType || '-'}</span>
-                                            <span>Bright: {moduleType.brightness} nits</span>
-                                            <span>Ref: {moduleType.refreshRate} Hz</span>
-                                            <span>Ang: {moduleType.viewAngleH}/{moduleType.viewAngleV}</span>
-                                            <span>IP: {moduleType.ipFront}/{moduleType.ipBack}</span>
-                                            <span>Pwr: {moduleType.avgPower}/{moduleType.maxPower} W</span>
-                                            <span>Wt: {moduleType.weight} kg</span>
-                                        </div>
-                                    );
-                                }
-                                if (item.id === 'cabinets' && cabinetType) {
-                                    extraSpecs = (
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] text-slate-500">
-                                            <span>Size: {cabinetType.width}x{cabinetType.height}mm</span>
-                                            <span>Mat: {cabinetType.material}</span>
-                                            <span>Weight: {cabinetType.weight} kg</span>
-                                        </div>
-                                    );
-                                }
-                                return (
-                                    <tr key={i}>
-                                        <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
-                                        <td className="p-2 border border-slate-300 font-bold align-top">{item.name}</td>
-                                        <td className="p-2 border border-slate-300 align-top">
-                                            <div className="font-semibold">{item.spec}</div>
-                                            {extraSpecs}
-                                        </td>
-                                        <td className="p-2 border border-slate-300 text-center align-top">{item.qty}</td>
-                                        <td className="p-2 border border-slate-300 text-center font-bold align-top">{item.qty * screenQty}</td>
-                                    </tr>
+                )}
+                
+                <table className="w-full border-collapse border border-slate-300 text-[10px]">
+                    <thead className="bg-slate-100 text-slate-700">
+                        <tr>
+                            <th className="p-2 border border-slate-300 text-left w-10">#</th>
+                            <th className="p-2 border border-slate-300 text-left w-32">Component</th>
+                            <th className="p-2 border border-slate-300 text-left">Specification / Details</th>
+                            <th className="p-2 border border-slate-300 text-center w-16">Qty/Scrn</th>
+                            <th className="p-2 border border-slate-300 text-center w-16">Total Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {detailedItems.map((item, i) => {
+                            let extraSpecs = null;
+                            if (item.id === 'modules' && moduleType) {
+                                extraSpecs = (
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] text-slate-500">
+                                        <span>Size: {moduleType.width}x{moduleType.height}mm</span>
+                                        <span>LED: {moduleType.ledType || '-'}</span>
+                                        <span>Bright: {moduleType.brightness} nits</span>
+                                        <span>Ref: {moduleType.refreshRate} Hz</span>
+                                        <span>Ang: {moduleType.viewAngleH}/{moduleType.viewAngleV}</span>
+                                        <span>IP: {moduleType.ipFront}/{moduleType.ipBack}</span>
+                                        <span>Pwr: {moduleType.avgPower}/{moduleType.maxPower} W</span>
+                                        <span>Wt: {moduleType.weight} kg</span>
+                                    </div>
                                 );
-                            })}
-                        </tbody>
-                    </table>
-                    
-                    <div className="mt-8 text-[10px] text-slate-400 border-t border-slate-200 pt-2 text-center">
-                        Internal Document • Generated by Admire Signage Tool
+                            }
+                            if (item.id === 'cabinets' && cabinetType) {
+                                extraSpecs = (
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[9px] text-slate-500">
+                                        <span>Size: {cabinetType.width}x{cabinetType.height}mm</span>
+                                        <span>Mat: {cabinetType.material}</span>
+                                        <span>Weight: {cabinetType.weight} kg</span>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <tr key={i}>
+                                    <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
+                                    <td className="p-2 border border-slate-300 font-bold align-top">{item.name}</td>
+                                    <td className="p-2 border border-slate-300 align-top">
+                                        <div className="font-semibold">{item.spec}</div>
+                                        {extraSpecs}
+                                    </td>
+                                    <td className="p-2 border border-slate-300 text-center align-top">{item.qty}</td>
+                                    <td className="p-2 border border-slate-300 text-center font-bold align-top">{item.qty * screenQty}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+    
+    // Helper to render consolidated BOM (all screens combined)
+    const renderConsolidatedBOM = () => {
+        if (!isMultiScreen) return null;
+        
+        // Aggregate all components across all screens
+        const consolidatedItems = {};
+        
+        allScreensData.calculations.forEach((calc, screenIndex) => {
+            calc.detailedItems.forEach(item => {
+                const key = `${item.inventoryId || item.id}_${item.spec}`;
+                
+                if (!consolidatedItems[key]) {
+                    consolidatedItems[key] = {
+                        name: item.name,
+                        spec: item.spec,
+                        totalQty: 0,
+                        screens: []
+                    };
+                }
+                
+                const itemTotalQty = item.qty * calc.screenQty;
+                consolidatedItems[key].totalQty += itemTotalQty;
+                consolidatedItems[key].screens.push({
+                    screenIndex: screenIndex + 1,
+                    qtyPerScreen: item.qty,
+                    screenQty: calc.screenQty,
+                    total: itemTotalQty
+                });
+            });
+        });
+        
+        const consolidatedArray = Object.values(consolidatedItems);
+        
+        return (
+            <div className="mt-8 break-inside-avoid border-t-4 border-slate-800 pt-6">
+                <div className="bg-slate-800 text-white p-3 rounded-t-lg mb-0">
+                    <h3 className="font-bold text-lg uppercase tracking-wide">Consolidated Bill of Materials</h3>
+                    <p className="text-xs text-slate-300 mt-1">Combined quantities across all screen configurations</p>
+                </div>
+                
+                <table className="w-full border-collapse border border-slate-300 text-[10px]">
+                    <thead className="bg-slate-700 text-white">
+                        <tr>
+                            <th className="p-2 border border-slate-600 text-left w-10">#</th>
+                            <th className="p-2 border border-slate-600 text-left w-32">Component</th>
+                            <th className="p-2 border border-slate-600 text-left">Specification</th>
+                            <th className="p-2 border border-slate-600 text-center w-20">Total Qty</th>
+                            <th className="p-2 border border-slate-600 text-left">Usage Breakdown</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {consolidatedArray.map((item, i) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
+                                <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
+                                <td className="p-2 border border-slate-300 font-bold align-top">{item.name}</td>
+                                <td className="p-2 border border-slate-300 align-top">{item.spec}</td>
+                                <td className="p-2 border border-slate-300 text-center font-bold align-top text-teal-700">{item.totalQty}</td>
+                                <td className="p-2 border border-slate-300 align-top">
+                                    <div className="text-[9px] text-slate-600">
+                                        {item.screens.map((screen, idx) => (
+                                            <span key={idx}>
+                                                Screen #{screen.screenIndex}: {screen.total} units
+                                                {idx < item.screens.length - 1 ? ' • ' : ''}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                
+                <div className="mt-4 p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg border border-teal-200 dark:border-teal-800">
+                    <div className="grid grid-cols-3 gap-4 text-xs">
+                        <div>
+                            <span className="font-bold text-teal-800 dark:text-teal-300">Total Configurations:</span>
+                            <span className="ml-2 font-bold text-lg text-teal-600 dark:text-teal-400">{allScreensData.calculations.length}</span>
+                        </div>
+                        <div>
+                            <span className="font-bold text-teal-800 dark:text-teal-300">Total Screens:</span>
+                            <span className="ml-2 font-bold text-lg text-teal-600 dark:text-teal-400">{allScreensData.totalScreenQty}</span>
+                        </div>
+                        <div>
+                            <span className="font-bold text-teal-800 dark:text-teal-300">Unique Components:</span>
+                            <span className="ml-2 font-bold text-lg text-teal-600 dark:text-teal-400">{consolidatedArray.length}</span>
+                        </div>
                     </div>
                 </div>
-            );
-        };
+            </div>
+        );
+    };
+
+    return (
+        <div className="p-8 max-w-[210mm] mx-auto bg-white min-h-screen text-slate-800 print:p-0 print:w-full font-sans text-xs">
+            <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">Bill of Materials</h1>
+                    <div className="mt-2 space-y-1">
+                        <p className="text-sm font-bold text-slate-700">Project: <span className="font-normal">{projectName}</span></p>
+                        <p className="text-sm font-bold text-slate-700">Client: <span className="font-normal">{clientName}</span></p>
+                        {isMultiScreen && (
+                            <p className="text-sm font-bold text-slate-700">
+                                Configurations: <span className="font-normal">{allScreensData.calculations.length} screen types • {allScreensData.totalScreenQty} total screens</span>
+                            </p>
+                        )}
+                        {!isMultiScreen && data.moduleType && (
+                            <p className="text-sm font-bold text-slate-700">
+                                Specs: <span className="font-normal">P{data.moduleType.pitch} {data.moduleType.indoor ? 'Indoor' : 'Outdoor'} • {data.finalWidth}m x {data.finalHeight}m • Qty: {data.screenQty}</span>
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className="text-right">
+                    <p className="text-sm font-bold text-slate-700">REF: {generateId()}</p>
+                    <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
+                </div>
+            </div>
+
+            {/* Individual Screen BOMs */}
+            {isMultiScreen ? (
+                <>
+                    <div className="mb-6">
+                        <h2 className="text-sm font-bold text-slate-700 uppercase mb-3 pb-2 border-b border-slate-300">Individual Screen Configurations</h2>
+                    </div>
+                    {allScreensData.calculations.map((calc, index) => 
+                        renderScreenBOM(calc, index, allScreensData.screenConfigs ? allScreensData.screenConfigs[index] : {})
+                    )}
+                    
+                    {/* Consolidated BOM */}
+                    {renderConsolidatedBOM()}
+                </>
+            ) : (
+                // Single screen BOM (backward compatible)
+                renderScreenBOM(data, 0, {})
+            )}
+            
+            <div className="mt-8 text-[10px] text-slate-400 border-t border-slate-200 pt-2 text-center">
+                Internal Document • Generated by Admire Signage Tool
+            </div>
+        </div>
+    );
+};
 
         // Helper: Extra Input
         const ExtraInput = ({ label, fieldKey, extras, updateExtra, currency }) => (
@@ -1449,9 +1594,11 @@
         );
 
   // --- Interactive Cost Table (With Sub-totals & Working Add Button) ---
-        const InteractiveCostSheet = ({ calculation, state, updateState, updateExtra, inventory, getStock, overrides, onOverride, editingRow, setEditingRow, onClearOverride }) => {
-            
-            const { screenQty, selectedPitch, selectedModuleId, selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, assemblyMode, selectedIndoor, extras, commercials } = state;
+        const InteractiveCostSheet = ({ calculation, state, updateState, updateExtra, updateScreenProp, inventory, getStock, overrides, onOverride, editingRow, setEditingRow, onClearOverride }) => {
+    
+    const activeScreen = state.screens[state.activeScreenIndex];
+const { screenQty, selectedPitch, selectedModuleId, selectedCabinetId, selectedCardId, selectedPSUId, selectedProcId, sizingMode, readyId, extraComponents, extras, commercials } = activeScreen;
+const { assemblyMode, selectedIndoor } = state;
 
             // Safety ID Generator
             const safeGenId = () => Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -1471,76 +1618,80 @@
 
             // --- Helper: Render Hardware Selection ---
             const renderComponentCell = (item) => {
-                if (item.id === 'modules') {
-                    return (
-                        <div className="flex gap-2">
-                            <select value={selectedPitch} onChange={e => { updateState('selectedPitch', e.target.value); updateState('selectedModuleId', ''); }} className="w-20 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                                <option value="">Pitch</option>{uniquePitches.map(p => <option key={p} value={p}>P{p}</option>)}
-                            </select>
-                            <select value={selectedModuleId} onChange={e => updateState('selectedModuleId', e.target.value)} disabled={!selectedPitch} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50">
-                                <option value="">Select Module...</option>
-                                {filteredModules.map(m => <option key={m.id} value={m.id}>{m.brand} {m.model} ({getStock(m.id)})</option>)}
-                            </select>
-                        </div>
-                    );
-                }
-                if (item.id === 'cabinets') {
-                    return <select value={selectedCabinetId} onChange={e => updateState('selectedCabinetId', e.target.value)} disabled={!selectedModule} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50"><option value="">Select Cabinet...</option>{cabinets.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({c.width}x{c.height}) - Stock: {getStock(c.id)}</option>)}</select>;
-                }
-                if (item.id === 'cards') {
-                    return <select value={selectedCardId} onChange={e => updateState('selectedCardId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select Card...</option>{inventory.filter(i => i.type === 'card').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}</select>;
-                }
-                if (item.id === 'psu') {
-                    return <select value={selectedPSUId} onChange={e => updateState('selectedPSUId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select SMPS...</option>{inventory.filter(i => i.type === 'psu').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}</select>;
-                }
-                if (item.id === 'processor') {
-                    return (
-                        <div className="flex flex-col gap-1">
-                            <select value={selectedProcId} onChange={e => updateState('selectedProcId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                                <option value="">Select Processor...</option>
-                                {inventory.filter(i => i.type === 'processor').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}
-                            </select>
-                            <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-green-600 font-bold">Sell:</span>
-                                <input 
-                                    type="number" 
-                                    className="w-20 p-0.5 text-xs border border-green-200 rounded bg-green-50 text-green-800"
-                                    value={state.commercials.processor?.val || 0}
-                                    onChange={e => updateState('commercials', {...commercials, processor: {...commercials.processor, val: e.target.value}})}
-                                />
-                            </div>
-                        </div>
-                    );
-                }
-                if (item.id === 'ready') {
-                     return <select value={state.readyId} onChange={e => updateState('readyId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select Screen Model...</option>{readyUnits.map(u => <option key={u.id} value={u.id}>{u.brand} {u.model} (P{u.pitch})</option>)}</select>;
-                }
-                
-                const extraIdx = state.extraComponents ? state.extraComponents.findIndex(e => e.id === item.id) : -1;
-                if (extraIdx !== -1) {
-                     return (
-                        <div className="flex gap-1 items-center">
-                            <select value={state.extraComponents[extraIdx].componentId} onChange={e => { const n = [...state.extraComponents]; n[extraIdx].componentId = e.target.value; updateState('extraComponents', n); }} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                                <option value="">Select...</option>
-                                {['module', 'cabinet', 'card', 'psu'].map(type => {
-                                    const items = inventory.filter(i => i.type === type).sort((a,b) => (a.brand + ' ' + a.model).localeCompare(b.brand + ' ' + b.model));
-                                    if (items.length === 0) return null;
-                                    return (
-                                        <optgroup key={type} label={type === 'psu' ? 'SMPS' : type.toUpperCase()}>
-                                            {items.map(i => (
-                                                <option key={i.id} value={i.id}>{i.brand} {i.model}</option>
-                                            ))}
-                                        </optgroup>
-                                    );
-                                })}
-                            </select>
-                            <select value={state.extraComponents[extraIdx].type} onChange={e => { const n = [...state.extraComponents]; n[extraIdx].type = e.target.value; updateState('extraComponents', n); }} className="w-16 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="screen">/Scrn</option><option value="cabinet">/Cab</option></select>
-                            <button type="button" onClick={() => updateState('extraComponents', state.extraComponents.filter((_, i) => i !== extraIdx))} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
-                        </div>
-                    );
-                }
-                return <span className="font-bold text-slate-700 dark:text-slate-200">{item.name} <span className="text-[10px] text-slate-400 font-normal">({item.spec})</span></span>;
-            };
+    const updateScreenState = (key, value) => {
+        updateScreenProp(state.activeScreenIndex, key, value);
+    };
+    
+    if (item.id === 'modules') {
+        return (
+            <div className="flex gap-2">
+                <select value={selectedPitch} onChange={e => { updateScreenState('selectedPitch', e.target.value); updateScreenState('selectedModuleId', ''); }} className="w-20 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+                    <option value="">Pitch</option>{uniquePitches.map(p => <option key={p} value={p}>P{p}</option>)}
+                </select>
+                <select value={selectedModuleId} onChange={e => updateScreenState('selectedModuleId', e.target.value)} disabled={!selectedPitch} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50">
+                    <option value="">Select Module...</option>
+                    {filteredModules.map(m => <option key={m.id} value={m.id}>{m.brand} {m.model} ({getStock(m.id)})</option>)}
+                </select>
+            </div>
+        );
+    }
+    if (item.id === 'cabinets') {
+        return <select value={selectedCabinetId} onChange={e => updateScreenState('selectedCabinetId', e.target.value)} disabled={!selectedModule} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white disabled:opacity-50"><option value="">Select Cabinet...</option>{cabinets.map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({c.width}x{c.height}) - Stock: {getStock(c.id)}</option>)}</select>;
+    }
+    if (item.id === 'cards') {
+        return <select value={selectedCardId} onChange={e => updateScreenState('selectedCardId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select Card...</option>{inventory.filter(i => i.type === 'card').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}</select>;
+    }
+    if (item.id === 'psu') {
+        return <select value={selectedPSUId} onChange={e => updateScreenState('selectedPSUId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select SMPS...</option>{inventory.filter(i => i.type === 'psu').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}</select>;
+    }
+    if (item.id === 'processor') {
+        return (
+            <div className="flex flex-col gap-1">
+                <select value={selectedProcId} onChange={e => updateScreenState('selectedProcId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+                    <option value="">Select Processor...</option>
+                    {inventory.filter(i => i.type === 'processor').map(c => <option key={c.id} value={c.id}>{c.brand} {c.model} ({getStock(c.id)})</option>)}
+                </select>
+                <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-green-600 font-bold">Sell:</span>
+                    <input 
+    type="number" 
+    className="w-20 p-0.5 text-xs border border-green-200 rounded bg-green-50 text-green-800"
+    value={commercials.processor?.val || 0}
+    onChange={e => updateScreenProp(state.activeScreenIndex, 'commercials', {...commercials, processor: {...commercials.processor, val: e.target.value}})}
+/>
+                </div>
+            </div>
+        );
+    }
+    if (item.id === 'ready') {
+         return <select value={readyId} onChange={e => updateScreenState('readyId', e.target.value)} className="w-full p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="">Select Screen Model...</option>{readyUnits.map(u => <option key={u.id} value={u.id}>{u.brand} {u.model} (P{u.pitch})</option>)}</select>;
+    }
+    
+    const extraIdx = extraComponents ? extraComponents.findIndex(e => e.id === item.id) : -1;
+    if (extraIdx !== -1) {
+         return (
+            <div className="flex gap-1 items-center">
+                <select value={extraComponents[extraIdx].componentId} onChange={e => { const n = [...extraComponents]; n[extraIdx].componentId = e.target.value; updateScreenState('extraComponents', n); }} className="flex-1 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white">
+                    <option value="">Select...</option>
+                    {['module', 'cabinet', 'card', 'psu'].map(type => {
+                        const items = inventory.filter(i => i.type === type).sort((a,b) => (a.brand + ' ' + a.model).localeCompare(b.brand + ' ' + b.model));
+                        if (items.length === 0) return null;
+                        return (
+                            <optgroup key={type} label={type === 'psu' ? 'SMPS' : type.toUpperCase()}>
+                                {items.map(i => (
+                                    <option key={i.id} value={i.id}>{i.brand} {i.model}</option>
+                                ))}
+                            </optgroup>
+                        );
+                    })}
+                </select>
+                <select value={extraComponents[extraIdx].type} onChange={e => { const n = [...extraComponents]; n[extraIdx].type = e.target.value; updateScreenState('extraComponents', n); }} className="w-16 p-1 text-xs border rounded bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="screen">/Scrn</option><option value="cabinet">/Cab</option></select>
+                <button type="button" onClick={() => updateScreenState('extraComponents', extraComponents.filter((_, i) => i !== extraIdx))} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+            </div>
+        );
+    }
+    return <span className="font-bold text-slate-700 dark:text-slate-200">{item.name} <span className="text-[10px] text-slate-400 font-normal">({item.spec})</span></span>;
+};
 
             // --- Calculation Grouping ---
             const getExtraCost = (key) => calculation?.calculatedExtras?.[key] || 0;
@@ -1636,11 +1787,11 @@
                         <div className="flex flex-col gap-1">
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-medium">{label}</span>
-                                <select value={commercials[sellKey]?.unit || 'sqft'} onChange={e => updateState('commercials', {...commercials, [sellKey]: {...commercials[sellKey], unit: e.target.value}})} className="text-[10px] p-0.5 border rounded bg-slate-50 dark:bg-slate-700"><option value="sqft">/Sq.Ft</option><option value="screen">/Screen</option></select>
+                                <select value={commercials[sellKey]?.unit || 'sqft'} onChange={e => updateScreenProp(state.activeScreenIndex, 'commercials', {...commercials, [sellKey]: {...commercials[sellKey], unit: e.target.value}})} className="text-[10px] p-0.5 border rounded bg-slate-50 dark:bg-slate-700"><option value="sqft">/Sq.Ft</option><option value="screen">/Screen</option></select>
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="text-[10px] text-green-600 font-bold">Sell:</span>
-                                <input type="number" className="w-20 p-0.5 text-xs border border-green-200 rounded bg-green-50 text-green-800" value={commercials[sellKey]?.val || 0} onChange={e => updateState('commercials', {...commercials, [sellKey]: {...commercials[sellKey], val: e.target.value}})} />
+                                <input type="number" className="w-20 p-0.5 text-xs border border-green-200 rounded bg-green-50 text-green-800" value={commercials[sellKey]?.val || 0} onChange={e => updateScreenProp(state.activeScreenIndex, 'commercials', {...commercials, [sellKey]: {...commercials[sellKey], val: e.target.value}})} />
                             </div>
                         </div>
                     </td>
@@ -1676,8 +1827,8 @@
                             <tr className="bg-slate-50 dark:bg-slate-800/50"><td colSpan="5" className="p-2 font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider text-[10px]">A. LED Panel & Logistics</td></tr>
                             {ledItems.map(renderItemRow)}
                             <tr className="bg-white dark:bg-slate-900">
-                                <td colSpan="5" className="p-2 text-center">
-                                    <button type="button" onClick={() => updateState('extraComponents', [...(state.extraComponents || []), { id: safeGenId(), componentId: '', qty: 1, type: 'screen' }])} className="text-[10px] text-teal-600 hover:underline flex items-center justify-center gap-1 w-full"><Plus size={10}/> Add Component to Panel</button>
+    <td colSpan="5" className="p-2 text-center">
+        <button type="button" onClick={() => updateScreenProp(state.activeScreenIndex, 'extraComponents', [...(extraComponents || []), { id: safeGenId(), componentId: '', qty: 1, type: 'screen' }])} className="text-[10px] text-teal-600 hover:underline flex items-center justify-center gap-1 w-full"><Plus size={10}/> Add Component to Panel</button>
                                 </td>
                             </tr>
                             {logisticsKeys.map(k => renderLogisticsRow(k))}
@@ -1722,7 +1873,8 @@
             } = state;
 
             const [calculation, setCalculation] = React.useState(null);
-            const [showPreview, setShowPreview] = React.useState(false); 
+const [allScreensTotal, setAllScreensTotal] = React.useState(null);
+const [showPreview, setShowPreview] = React.useState(false);
             const [showStock, setShowStock] = React.useState(false);
             const [showBOM, setShowBOM] = React.useState(false);
             const [bomTab, setBomTab] = React.useState('interactive');
@@ -1731,50 +1883,177 @@
             const getStock = (id) => transactions ? transactions.filter(t => t.itemId === id).reduce((acc, t) => acc + (t.type === 'in' ? Number(t.qty) : -Number(t.qty)), 0) : 0;
             const updateState = (key, value) => setState(prev => ({ ...prev, [key]: value }));
             const updateExtra = (key, field, val) => {
-                setState(prev => ({ ...prev, extras: { ...prev.extras, [key]: { ...prev.extras[key], [field]: val } } }));
-            };
+    const activeIndex = state.activeScreenIndex;
+    setState(prev => {
+        const newScreens = [...prev.screens];
+        newScreens[activeIndex] = {
+            ...newScreens[activeIndex],
+            extras: {
+                ...newScreens[activeIndex].extras,
+                [key]: {
+                    ...newScreens[activeIndex].extras[key],
+                    [field]: val
+                }
+            }
+        };
+        return { ...prev, screens: newScreens };
+    });
+};
 
             const handleReset = () => {
-                if (confirm("Reset calculator to defaults?")) {
-                    setState({
-                        client: '', project: '', 
-                        screenQty: 0, targetWidth: 0, targetHeight: 0,
-                        unit: 'ft', 
-                        selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
-                        selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
-                        selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
-                        margin: 0, pricingMode: 'margin', targetSellPrice: 0,
-                        extraComponents: [],
-                        commercials: { 
-                            processor: {val: 0, unit: 'screen'}, 
-                            installation: {val: 0, unit: 'sqft'}, 
-                            structure: {val: 0, unit: 'sqft'} 
-                        },
-                        terms: {
-                            price: 'Ex-works Mumbai',
-                            deliveryWeeks: 10,
-                            payment: [
-                                { name: "Advance with order", percent: 60 },
-                                { name: "Before dispatch", percent: 30 },
-                                { name: "After installation", percent: 10 }
-                            ]
-                        },
-                        extras: {
-                            assembly: { val: 0, type: 'abs' }, 
-                            hardware: { val: 0, type: 'abs' }, 
-                            packaging: { val: 0, type: 'abs' }, 
-                            transport: { val: 0, type: 'abs' }, 
-                            install: { val: 0, type: 'abs' }, 
-                            wastage: { val: 0, type: 'abs' }, 
-                            overheads: { val: 0, type: 'abs' }, 
-                            structure: { val: 0, type: 'abs' } 
-                        },
-                        overrides: {},
-                        editingRow: null
-                    });
-                }
-            };
+    if (confirm("Reset calculator to defaults?")) {
+        setState({
+            client: '', project: '', unit: 'ft',
+            screens: [
+    {
+        id: generateId(),
+        screenQty: 0,
+        targetWidth: 0,
+        targetHeight: 0,
+        selectedIndoor: 'true',
+        assemblyMode: 'assembled',
+        selectedPitch: '',
+        selectedModuleId: '',
+        selectedCabinetId: '',
+        selectedCardId: '',
+        selectedPSUId: '',
+        selectedProcId: '',
+        sizingMode: 'closest',
+        readyId: '',
+        extraComponents: [],
+        overrides: {},
+        editingRow: null,
+        extras: {
+            assembly: { val: 0, type: 'abs' },
+            hardware: { val: 0, type: 'abs' },
+            packaging: { val: 0, type: 'abs' },
+            transport: { val: 0, type: 'abs' },
+            install: { val: 0, type: 'abs' },
+            wastage: { val: 0, type: 'abs' },
+            overheads: { val: 0, type: 'abs' },
+            structure: { val: 0, type: 'abs' }
+        },
+        commercials: {
+            processor: {val: 0, unit: 'screen'},
+            installation: {val: 0, unit: 'sqft'},
+            structure: {val: 0, unit: 'sqft'}
+        }
+    }
+],
+            activeScreenIndex: 0,
+            selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
+            selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
+            selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
+            margin: 0, pricingMode: 'margin', targetSellPrice: 0,
+            extraComponents: [],
+            commercials: { 
+                processor: {val: 0, unit: 'screen'}, 
+                installation: {val: 0, unit: 'sqft'}, 
+                structure: {val: 0, unit: 'sqft'} 
+            },
+            terms: {
+                price: 'Ex-works Mumbai',
+                deliveryWeeks: 10,
+                payment: [
+                    { name: "Advance with order", percent: 60 },
+                    { name: "Before dispatch", percent: 30 },
+                    { name: "After installation", percent: 10 }
+                ]
+            },
+            extras: {
+                assembly: { val: 0, type: 'abs' }, 
+                hardware: { val: 0, type: 'abs' }, 
+                packaging: { val: 0, type: 'abs' }, 
+                transport: { val: 0, type: 'abs' }, 
+                install: { val: 0, type: 'abs' }, 
+                wastage: { val: 0, type: 'abs' }, 
+                overheads: { val: 0, type: 'abs' }, 
+                structure: { val: 0, type: 'abs' } 
+            },
+            overrides: {},
+            editingRow: null
+        });
+    }
+};
+// Screen Management Functions
+const addScreen = () => {
+    const newScreen = {
+        id: generateId(),
+        screenQty: 1,
+        targetWidth: 0,
+        targetHeight: 0,
+        selectedIndoor: state.selectedIndoor,
+        assemblyMode: state.assemblyMode,
+        selectedPitch: '',
+        selectedModuleId: '',
+        selectedCabinetId: '',
+        selectedCardId: '',
+        selectedPSUId: '',
+        selectedProcId: '',
+        sizingMode: 'closest',
+        readyId: '',
+        extraComponents: [],
+        overrides: {},
+        editingRow: null,
+        extras: {
+            assembly: { val: 0, type: 'abs' },
+            hardware: { val: 0, type: 'abs' },
+            packaging: { val: 0, type: 'abs' },
+            transport: { val: 0, type: 'abs' },
+            install: { val: 0, type: 'abs' },
+            wastage: { val: 0, type: 'abs' },
+            overheads: { val: 0, type: 'abs' },
+            structure: { val: 0, type: 'abs' }
+        },
+        commercials: {
+            processor: {val: 0, unit: 'screen'},
+            installation: {val: 0, unit: 'sqft'},
+            structure: {val: 0, unit: 'sqft'}
+        }
+    };
+    setState(prev => ({
+        ...prev,
+        screens: [...prev.screens, newScreen],
+        activeScreenIndex: prev.screens.length
+    }));
+};
 
+const removeScreen = (index) => {
+    if (state.screens.length === 1) {
+        alert("Cannot remove the last screen configuration.");
+        return;
+    }
+    if (confirm("Remove this screen configuration?")) {
+        setState(prev => ({
+            ...prev,
+            screens: prev.screens.filter((_, i) => i !== index),
+            activeScreenIndex: Math.min(prev.activeScreenIndex, prev.screens.length - 2)
+        }));
+    }
+};
+
+const updateScreenProp = (index, key, value) => {
+    setState(prev => {
+        const newScreens = [...prev.screens];
+        newScreens[index] = { ...newScreens[index], [key]: value };
+        return { ...prev, screens: newScreens };
+    });
+};
+
+const duplicateScreen = (index) => {
+    const screenToDup = state.screens[index];
+    const newScreen = {
+        ...screenToDup,
+        id: generateId(),
+        overrides: {},
+        editingRow: null
+    };
+    setState(prev => ({
+        ...prev,
+        screens: [...prev.screens, newScreen],
+        activeScreenIndex: prev.screens.length
+    }));
+};
             // Override Handlers
             const handleOverride = (id, field, value) => {
                 setState(prev => ({
@@ -1788,12 +2067,93 @@
                 updateState('overrides', newOverrides);
                 updateState('editingRow', null);
             };
-
-            // Real-time Calculation
-            React.useEffect(() => {
-                const result = calculateBOM(state, inventory, transactions, exchangeRate);
-                setCalculation(result);
-            }, [state.targetWidth, state.targetHeight, state.unit, state.selectedIndoor, state.assemblyMode, state.selectedPitch, state.selectedModuleId, state.selectedCabinetId, state.selectedCardId, state.selectedPSUId, state.selectedProcId, state.readyId, state.sizingMode, state.margin, state.extras, inventory, exchangeRate, state.screenQty, state.overrides, state.pricingMode, state.targetSellPrice, state.extraComponents, state.commercials, state.terms]);
+// Calculate totals across all screens
+const calculateAllScreens = () => {
+    if (!state.screens || state.screens.length === 0) return null;
+    
+    const allCalculations = state.screens.map((screen, index) => {
+        const calcState = {
+    ...state,
+    screenQty: screen.screenQty,
+    targetWidth: screen.targetWidth,
+    targetHeight: screen.targetHeight,
+    selectedPitch: screen.selectedPitch,
+    selectedModuleId: screen.selectedModuleId,
+    selectedCabinetId: screen.selectedCabinetId,
+    selectedCardId: screen.selectedCardId,
+    selectedPSUId: screen.selectedPSUId,
+    selectedProcId: screen.selectedProcId,
+    sizingMode: screen.sizingMode,
+    readyId: screen.readyId,
+    extraComponents: screen.extraComponents,
+    overrides: screen.overrides,
+    editingRow: screen.editingRow,
+    extras: screen.extras,
+    commercials: screen.commercials
+};
+        return calculateBOM(calcState, inventory, transactions, exchangeRate);
+    }).filter(calc => calc !== null);
+    
+    if (allCalculations.length === 0) return null;
+    
+    // Aggregate totals
+const totals = {
+    totalProjectCost: allCalculations.reduce((sum, calc) => sum + calc.totalProjectCost, 0),
+    totalProjectSell: allCalculations.reduce((sum, calc) => sum + calc.totalProjectSell, 0),
+    totalLEDSell: allCalculations.reduce((sum, calc) => sum + (calc.matrix.led.sell * calc.screenQty), 0),
+    totalServicesSell: allCalculations.reduce((sum, calc) => sum + (calc.matrix.sell.total - (calc.matrix.led.sell * calc.screenQty)), 0),
+    totalMargin: 0,
+    totalScreenQty: allCalculations.reduce((sum, calc) => sum + calc.screenQty, 0),
+    calculations: allCalculations,
+    screenConfigs: state.screens // Include screen configs for BOM display
+};
+    
+    totals.totalMargin = totals.totalProjectSell - totals.totalProjectCost;
+    
+    return totals;
+};
+            // Real-time Calculation - Calculate for Active Screen
+React.useEffect(() => {
+    if (!state.screens || state.screens.length === 0) {
+        setCalculation(null);
+        return;
+    }
+    
+    const activeScreen = state.screens[state.activeScreenIndex];
+    if (!activeScreen) {
+        setCalculation(null);
+        return;
+    }
+    
+    // Merge active screen properties with global state for calculation
+const calcState = {
+    ...state,
+    screenQty: activeScreen.screenQty,
+    targetWidth: activeScreen.targetWidth,
+    targetHeight: activeScreen.targetHeight,
+    selectedPitch: activeScreen.selectedPitch,
+    selectedModuleId: activeScreen.selectedModuleId,
+    selectedCabinetId: activeScreen.selectedCabinetId,
+    selectedCardId: activeScreen.selectedCardId,
+    selectedPSUId: activeScreen.selectedPSUId,
+    selectedProcId: activeScreen.selectedProcId,
+    sizingMode: activeScreen.sizingMode,
+    readyId: activeScreen.readyId,
+    extraComponents: activeScreen.extraComponents,
+    overrides: activeScreen.overrides,
+    editingRow: activeScreen.editingRow,
+    extras: activeScreen.extras,
+    commercials: activeScreen.commercials
+};
+    
+    const result = calculateBOM(calcState, inventory, transactions, exchangeRate);
+    setCalculation(result);
+}, [state.screens, state.activeScreenIndex, state.unit, state.selectedIndoor, state.assemblyMode, state.margin, state.extras, inventory, exchangeRate, state.pricingMode, state.targetSellPrice, state.commercials, state.terms]);
+// Calculate totals across all screens
+React.useEffect(() => {
+    const totals = calculateAllScreens();
+    setAllScreensTotal(totals);
+}, [state.screens, state.unit, state.selectedIndoor, state.assemblyMode, state.margin, state.extras, inventory, exchangeRate, state.pricingMode, state.targetSellPrice, state.commercials, state.terms]);
 
             // Profit Color Logic
             const profit = calculation ? calculation.matrix.margin.total : 0;
@@ -1803,24 +2163,43 @@
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative items-start">
                     
                     {/* --- Interactive BOM Modal --- */}
-                    {showBOM && calculation && (
-                        <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
-                            <div className="bg-white dark:bg-slate-900 max-w-5xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
-                                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
-                                    <div className="flex items-center gap-4">
-                                        <h2 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2"><FileText size={20} className="text-teal-600"/> Cost Sheet (BOM)</h2>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setShowBOM(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-sm font-bold">Close</button>
-                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-700 rounded flex items-center gap-2 text-sm font-bold"><Printer size={16}/> Print</button>
-                                    </div>
-                                </div>
-                                <div className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-800 p-8 flex justify-center">
-                                    <BOMLayout data={{...calculation, clientName: client, projectName: project}} />
-                                </div>
-                            </div>
-                        </div>
-                    )}
+{showBOM && (calculation || allScreensTotal) && (
+    <div className="fixed inset-0 z-[100] bg-black/80 flex justify-center items-center p-4">
+        <div className="bg-white dark:bg-slate-900 max-w-5xl w-full h-[90vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+                <div className="flex items-center gap-4">
+                    <h2 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                        <FileText size={20} className="text-teal-600"/> Cost Sheet (BOM)
+                        {state.screens.length > 1 && (
+                            <span className="text-xs font-normal text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-2 py-1 rounded">
+                                {state.screens.length} Configurations
+                            </span>
+                        )}
+                    </h2>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={() => setShowBOM(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-sm font-bold">Close</button>
+                    <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-700 rounded flex items-center gap-2 text-sm font-bold"><Printer size={16}/> Print</button>
+                </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-800 p-8 flex justify-center">
+                <BOMLayout 
+                    data={calculation ? {...calculation, clientName: client, projectName: project} : null}
+                    allScreensData={allScreensTotal ? {
+                        ...allScreensTotal,
+                        clientName: client,
+                        projectName: project,
+                        screenConfigs: state.screens.map(s => ({
+                            targetWidth: s.targetWidth,
+                            targetHeight: s.targetHeight,
+                            unit: unit
+                        }))
+                    } : null}
+                />
+            </div>
+        </div>
+    </div>
+)}
 
                     {/* --- Other Modals --- */}
                     {showPreview && calculation && (
@@ -1881,76 +2260,230 @@
                                 </div>
                             </div>
                             
-                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Client & Project</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <input value={client} onChange={e => updateState('client', e.target.value)} placeholder="Client Name" className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all dark:text-white" />
-                                            <input value={project} onChange={e => updateState('project', e.target.value)} placeholder="Project Ref" className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all dark:text-white" />
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Application & Supply</label>
-                                        <div className="grid grid-cols-2 gap-3 mb-2">
-                                            <button onClick={() => { updateState('selectedIndoor', 'true'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${selectedIndoor === 'true' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Indoor</button>
-                                            <button onClick={() => { updateState('selectedIndoor', 'false'); updateState('selectedModuleId', ''); updateState('readyId', ''); }} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${selectedIndoor === 'false' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Outdoor</button>
-                                        </div>
-                                         <div className="grid grid-cols-2 gap-3">
-                                            <button onClick={() => updateState('assemblyMode', 'assembled')} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${assemblyMode === 'assembled' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Assembled</button>
-                                            <button onClick={() => updateState('assemblyMode', 'ready')} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${assemblyMode === 'ready' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Ready Unit</button>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="p-6 space-y-6">
+    {/* Client & Project */}
+    <div>
+        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Client & Project</label>
+        <div className="grid grid-cols-2 gap-2">
+            <input value={client} onChange={e => updateState('client', e.target.value)} placeholder="Client Name" className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all dark:text-white" />
+            <input value={project} onChange={e => updateState('project', e.target.value)} placeholder="Project Ref" className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all dark:text-white" />
+        </div>
+    </div>
 
-                                <div className="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-100 dark:border-slate-600">
-                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Screen Dimensions</label>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <div><span className="text-[10px] text-slate-400 font-semibold block mb-1">WIDTH</span><input type="number" value={targetWidth} onChange={e => updateState('targetWidth', e.target.value)} className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md text-lg font-bold text-slate-800" /></div>
-                                        <div><span className="text-[10px] text-slate-400 font-semibold block mb-1">HEIGHT</span><input type="number" value={targetHeight} onChange={e => updateState('targetHeight', e.target.value)} className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-md text-lg font-bold text-slate-800" /></div>
-                                        <div><span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold block mb-1">QTY</span><input type="number" min="0" value={screenQty} onChange={e => updateState('screenQty', Math.max(0, parseInt(e.target.value)) || 0)} className="w-full p-2 border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 rounded-md text-lg font-bold" /></div>
-                                    </div>
-                                    
-                                    <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
-                                        {['closest', 'up', 'down'].map(m => (
-                                            <button key={m} onClick={() => updateState('sizingMode', m)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border capitalize transition-colors ${sizingMode === m ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'}`}>{m === 'closest' ? 'Closest Match' : `Round ${m}`}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+    {/* Global Settings */}
+    <div className="grid grid-cols-2 gap-4">
+        <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Application</label>
+            <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => { updateState('selectedIndoor', 'true'); }} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${selectedIndoor === 'true' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Indoor</button>
+                <button onClick={() => { updateState('selectedIndoor', 'false'); }} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${selectedIndoor === 'false' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Outdoor</button>
+            </div>
+        </div>
+        <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Supply Type</label>
+            <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => updateState('assemblyMode', 'assembled')} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${assemblyMode === 'assembled' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Assembled</button>
+                <button onClick={() => updateState('assemblyMode', 'ready')} className={`p-2 text-center text-sm border rounded-lg font-medium transition-all ${assemblyMode === 'ready' ? 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 text-teal-700 dark:text-teal-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Ready Unit</button>
+            </div>
+        </div>
+    </div>
+
+    {/* Screen Configurations */}
+    <div>
+        <div className="flex justify-between items-center mb-3">
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Screen Configurations</label>
+            <button onClick={addScreen} className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 flex items-center gap-1">
+                <Plus size={14} /> Add Size
+            </button>
+        </div>
+        
+        <div className="space-y-3">
+            {state.screens.map((screen, index) => (
+                <div key={screen.id} className={`p-4 rounded-lg border-2 transition-all ${state.activeScreenIndex === index ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-900/10' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => updateState('activeScreenIndex', index)}
+                                className={`px-2 py-1 rounded font-bold text-xs ${state.activeScreenIndex === index ? 'bg-teal-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
+                            >
+                                #{index + 1}
+                            </button>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {screen.targetWidth && screen.targetHeight ? `${screen.targetWidth} × ${screen.targetHeight} ${unit}` : 'Not configured'}
+                            </span>
+                        </div>
+                        <div className="flex gap-1">
+                            <button onClick={() => duplicateScreen(index)} className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400" title="Duplicate">
+                                <Copy size={14} />
+                            </button>
+                            {state.screens.length > 1 && (
+                                <button onClick={() => removeScreen(index)} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400" title="Remove">
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-2">
+                        <div>
+                            <span className="text-[10px] text-slate-400 font-semibold block mb-1">WIDTH</span>
+                            <input 
+                                type="number" 
+                                value={screen.targetWidth} 
+                                onChange={e => updateScreenProp(index, 'targetWidth', e.target.value)} 
+                                className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded text-sm font-bold text-slate-800" 
+                            />
+                        </div>
+                        <div>
+                            <span className="text-[10px] text-slate-400 font-semibold block mb-1">HEIGHT</span>
+                            <input 
+                                type="number" 
+                                value={screen.targetHeight} 
+                                onChange={e => updateScreenProp(index, 'targetHeight', e.target.value)} 
+                                className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded text-sm font-bold text-slate-800" 
+                            />
+                        </div>
+                        <div>
+                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold block mb-1">QTY</span>
+                            <input 
+                                type="number" 
+                                min="0" 
+                                value={screen.screenQty} 
+                                onChange={e => updateScreenProp(index, 'screenQty', Math.max(0, parseInt(e.target.value)) || 0)} 
+                                className="w-full p-2 border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 rounded text-sm font-bold" 
+                            />
+                        </div>
+                        <div>
+                            <span className="text-[10px] text-slate-400 font-semibold block mb-1">SIZING</span>
+                            <select 
+                                value={screen.sizingMode} 
+                                onChange={e => updateScreenProp(index, 'sizingMode', e.target.value)}
+                                className="w-full p-2 border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded text-xs"
+                            >
+                                <option value="closest">Closest</option>
+                                <option value="up">Round Up</option>
+                                <option value="down">Round Down</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+</div>
                         </div>
 
                         {/* 2. Detailed Cost & Selection Table */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                            <details className="group p-4" open>
-                                <summary className="flex justify-between items-center cursor-pointer list-none">
-                                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                        <Box className="w-4 h-4 text-teal-600" /> Hardware & Cost Breakdown
-                                    </h3>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-teal-600 text-xs font-bold group-open:hidden">Show Table</span>
-                                        <span className="text-slate-400 text-xs hidden group-open:block">Hide Table</span>
-                                    </div>
-                                </summary>
-                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                                     <InteractiveCostSheet 
-                                        calculation={calculation} 
-                                        state={state}
-                                        updateState={updateState}
-                                        updateExtra={updateExtra}
-                                        inventory={inventory}
-                                        getStock={getStock}
-                                        screenQty={screenQty} 
-                                        overrides={overrides} 
-                                        onOverride={handleOverride}
-                                        editingRow={editingRow}
-                                        setEditingRow={(id) => updateState('editingRow', id)}
-                                        onClearOverride={clearOverride}
-                                    />
+                        {/* 2. Detailed Cost & Selection Table - Carousel for Multiple Screens */}
+<div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+    <details className="group p-4" open>
+        <summary className="flex justify-between items-center cursor-pointer list-none">
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Box className="w-4 h-4 text-teal-600" /> Hardware & Cost Breakdown
+                {state.screens.length > 1 && (
+                    <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                        (Screen #{state.activeScreenIndex + 1} of {state.screens.length})
+                    </span>
+                )}
+            </h3>
+            <div className="flex items-center gap-2">
+                <span className="text-teal-600 text-xs font-bold group-open:hidden">Show Table</span>
+                <span className="text-slate-400 text-xs hidden group-open:block">Hide Table</span>
+            </div>
+        </summary>
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+            {/* Screen Navigation Tabs */}
+            {state.screens.length > 1 && (
+                <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                    {state.screens.map((screen, index) => {
+                        const isActive = state.activeScreenIndex === index;
+                        const screenLabel = screen.targetWidth && screen.targetHeight 
+                            ? `${screen.targetWidth}×${screen.targetHeight}${unit} (×${screen.screenQty})`
+                            : `Screen #${index + 1}`;
+                        
+                        return (
+                            <button
+                                key={screen.id}
+                                onClick={() => updateState('activeScreenIndex', index)}
+                                className={`flex-shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                                    isActive 
+                                        ? 'bg-teal-600 text-white shadow-lg' 
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span>#{index + 1}</span>
+                                    <span className="text-[10px] opacity-75">{screenLabel}</span>
                                 </div>
-                            </details>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+            
+            {/* Active Screen Details */}
+            {state.screens[state.activeScreenIndex] && (
+                <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-600">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400 font-semibold">Dimensions:</span>
+                            <span className="ml-2 font-bold text-slate-800 dark:text-white">
+                                {state.screens[state.activeScreenIndex].targetWidth || 0} × {state.screens[state.activeScreenIndex].targetHeight || 0} {unit}
+                            </span>
                         </div>
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400 font-semibold">Quantity:</span>
+                            <span className="ml-2 font-bold text-teal-600 dark:text-teal-400">
+                                {state.screens[state.activeScreenIndex].screenQty || 0} screens
+                            </span>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400 font-semibold">Sizing:</span>
+                            <span className="ml-2 font-bold text-slate-800 dark:text-white capitalize">
+                                {state.screens[state.activeScreenIndex].sizingMode}
+                            </span>
+                        </div>
+                        {calculation && (
+                            <div>
+                                <span className="text-slate-500 dark:text-slate-400 font-semibold">Final Size:</span>
+                                <span className="ml-2 font-bold text-slate-800 dark:text-white">
+                                    {calculation.finalWidth} × {calculation.finalHeight} m
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            <InteractiveCostSheet 
+                calculation={calculation} 
+                state={state}
+                updateState={updateState}
+                updateExtra={updateExtra}
+                updateScreenProp={updateScreenProp}
+                inventory={inventory}
+                getStock={getStock}
+                overrides={state.screens[state.activeScreenIndex]?.overrides || {}}
+                onOverride={(id, field, value) => {
+                    const screen = state.screens[state.activeScreenIndex];
+                    updateScreenProp(state.activeScreenIndex, 'overrides', {
+                        ...screen.overrides,
+                        [id]: { ...screen.overrides[id], [field]: value }
+                    });
+                }}
+                editingRow={state.screens[state.activeScreenIndex]?.editingRow}
+                setEditingRow={(id) => updateScreenProp(state.activeScreenIndex, 'editingRow', id)}
+                onClearOverride={(id) => {
+                    const screen = state.screens[state.activeScreenIndex];
+                    const newOverrides = { ...screen.overrides };
+                    delete newOverrides[id];
+                    updateScreenProp(state.activeScreenIndex, 'overrides', newOverrides);
+                    updateScreenProp(state.activeScreenIndex, 'editingRow', null);
+                }}
+            />
+        </div>
+    </details>
+</div>
 
                         {/* 4. Terms */}
                         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
@@ -1983,82 +2516,162 @@
                     <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
                         
                         {/* Financial Summary (Moved Up) */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                            <div className="p-5 bg-gradient-to-br from-slate-50 to-white dark:from-slate-700 dark:to-slate-800">
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Margin Strategy</label>
-                                    <select 
-                                        value={state.pricingMode || 'margin'} 
-                                        onChange={e => {
-                                            const newMode = e.target.value;
-                                            updateState('pricingMode', newMode);
-                                            if (newMode !== 'margin' && calculation) {
-                                                let newTarget = 0;
-                                                if (newMode === 'screen') newTarget = calculation.matrix.sell.unit;
-                                                else if (newMode === 'sqft') newTarget = calculation.matrix.sell.sqft;
-                                                else if (newMode === 'sqm') newTarget = calculation.matrix.sell.sqft * 10.7639;
-                                                updateState('targetSellPrice', Math.round(newTarget));
-                                            }
-                                        }}
-                                        className="text-xs border-none bg-transparent font-bold text-teal-600 dark:text-teal-400 focus:ring-0 cursor-pointer outline-none"
-                                    >
-                                        <option value="margin">Margin %</option>
-                                        <option value="sqft">Price / Sq.Ft</option>
-                                        <option value="sqm">Price / Sq.Mtr</option>
-                                        <option value="screen">Price / Screen</option>
-                                    </select>
-                                </div>
-                                
-                                <div className="flex items-center gap-2 mb-6">
-                                    <input 
-                                        type="number" 
-                                        value={state.pricingMode === 'margin' ? margin : state.targetSellPrice}
-                                        onChange={e => {
-                                            const val = parseFloat(e.target.value) || 0;
-                                            if (state.pricingMode === 'margin') updateState('margin', val);
-                                            else updateState('targetSellPrice', val);
-                                        }}
-                                        className="w-24 text-center text-xl font-bold p-2 border rounded-lg bg-white dark:bg-slate-600 dark:border-slate-500 shadow-sm focus:ring-2 focus:ring-teal-500/50 outline-none dark:text-white" 
-                                    />
-                                    <span className="text-lg font-bold text-slate-400">{state.pricingMode === 'margin' ? '%' : ''}</span>
-                                    <div className="flex-1 text-right">
-                                         <div className="text-[10px] text-slate-400 uppercase font-bold">Est. Profit</div>
-                                         <div className={`text-sm font-bold ${profitColor}`}>
-                                             {calculation ? formatCurrency(calculation.matrix.margin.total, 'INR') : '-'}
-                                         </div>
-                                    </div>
-                                </div>
+<div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="p-5 bg-gradient-to-br from-slate-50 to-white dark:from-slate-700 dark:to-slate-800">
+        {/* Multi-Screen Summary Header */}
+        {state.screens.length > 1 && allScreensTotal && (
+            <div className="mb-4 pb-4 border-b border-slate-200 dark:border-slate-600">
+                <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">Project Summary</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+                        <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">Screen Types</div>
+                        <div className="font-bold text-blue-800 dark:text-blue-300">{state.screens.length}</div>
+                    </div>
+                    <div className="bg-teal-50 dark:bg-teal-900/20 p-2 rounded">
+                        <div className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold">Total Qty</div>
+                        <div className="font-bold text-teal-800 dark:text-teal-300">{allScreensTotal.totalScreenQty}</div>
+                    </div>
+                </div>
+            </div>
+        )}
+        
+        <div className="flex justify-between items-center mb-2">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Margin Strategy</label>
+            <select 
+                value={state.pricingMode || 'margin'} 
+                onChange={e => {
+                    const newMode = e.target.value;
+                    updateState('pricingMode', newMode);
+                    if (newMode !== 'margin' && calculation) {
+                        let newTarget = 0;
+                        if (newMode === 'screen') newTarget = calculation.matrix.sell.unit;
+                        else if (newMode === 'sqft') newTarget = calculation.matrix.sell.sqft;
+                        else if (newMode === 'sqm') newTarget = calculation.matrix.sell.sqft * 10.7639;
+                        updateState('targetSellPrice', Math.round(newTarget));
+                    }
+                }}
+                className="text-xs border-none bg-transparent font-bold text-teal-600 dark:text-teal-400 focus:ring-0 cursor-pointer outline-none"
+            >
+                <option value="margin">Margin %</option>
+                <option value="sqft">Price / Sq.Ft</option>
+                <option value="sqm">Price / Sq.Mtr</option>
+                <option value="screen">Price / Screen</option>
+            </select>
+        </div>
+        
+        <div className="flex items-center gap-2 mb-6">
+            <input 
+                type="number" 
+                value={state.pricingMode === 'margin' ? margin : state.targetSellPrice}
+                onChange={e => {
+                    const val = parseFloat(e.target.value) || 0;
+                    if (state.pricingMode === 'margin') updateState('margin', val);
+                    else updateState('targetSellPrice', val);
+                }}
+                className="w-24 text-center text-xl font-bold p-2 border rounded-lg bg-white dark:bg-slate-600 dark:border-slate-500 shadow-sm focus:ring-2 focus:ring-teal-500/50 outline-none dark:text-white" 
+            />
+            <span className="text-lg font-bold text-slate-400">{state.pricingMode === 'margin' ? '%' : ''}</span>
+            <div className="flex-1 text-right">
+                 <div className="text-[10px] text-slate-400 uppercase font-bold">
+                     {state.screens.length > 1 ? 'Total Profit' : 'Est. Profit'}
+                 </div>
+                 <div className={`text-sm font-bold ${(allScreensTotal ? allScreensTotal.totalMargin : (calculation?.matrix.margin.total || 0)) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                     {allScreensTotal 
+                         ? formatCurrency(allScreensTotal.totalMargin, 'INR') 
+                         : (calculation ? formatCurrency(calculation.matrix.margin.total, 'INR') : '-')}
+                 </div>
+            </div>
+        </div>
 
-                                <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-600">
-                                    <div className="flex justify-between items-end">
-                                        <span className="text-sm text-slate-500 dark:text-slate-400">LED Panel Price</span>
-                                        <span className="font-bold text-slate-800 dark:text-white">{calculation ? formatCurrency(calculation.matrix.led.sell * screenQty, 'INR') : '-'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-end">
-                                        <span className="text-sm text-slate-500 dark:text-slate-400">Services & Extras</span>
-                                        <span className="font-bold text-slate-800 dark:text-white">
-                                            {calculation ? formatCurrency((calculation.matrix.sell.total - (calculation.matrix.led.sell * screenQty)), 'INR') : '-'}
+        <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-600">
+            {state.screens.length > 1 ? (
+                // Multi-Screen Breakdown
+                <>
+                    <div className="flex justify-between items-end">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">LED Panels (All)</span>
+                        <span className="font-bold text-slate-800 dark:text-white">
+                            {allScreensTotal ? formatCurrency(allScreensTotal.totalLEDSell, 'INR') : '-'}
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-end">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Services & Extras</span>
+                        <span className="font-bold text-slate-800 dark:text-white">
+                            {allScreensTotal ? formatCurrency(allScreensTotal.totalServicesSell, 'INR') : '-'}
+                        </span>
+                    </div>
+                    
+                    {/* Individual Screen Costs (Collapsible) */}
+                    <details className="group">
+                        <summary className="text-[10px] text-teal-600 dark:text-teal-400 font-bold uppercase cursor-pointer hover:underline">
+                            View Screen Breakdown
+                        </summary>
+                        <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-600">
+                            {allScreensTotal?.calculations.map((calc, index) => (
+                                <div key={index} className="text-xs">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500 dark:text-slate-400">
+                                            Screen #{index + 1} 
+                                            <span className="text-[10px] ml-1">
+                                                ({state.screens[index].targetWidth}×{state.screens[index].targetHeight}{unit} ×{calc.screenQty})
+                                            </span>
+                                        </span>
+                                        <span className="font-bold text-slate-700 dark:text-slate-300">
+                                            {formatCurrency(calc.totalProjectSell, 'INR')}
                                         </span>
                                     </div>
-                                    <div className="flex justify-between items-end pt-2 mt-2 border-t border-dashed border-slate-200 dark:border-slate-600">
-                                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Rate / Sq.Ft</span>
-                                        <span className="font-bold text-slate-500 dark:text-slate-400">{calculation ? formatCurrency(calculation.matrix.sell.sqft, 'INR') : '-'}</span>
-                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div className="bg-slate-900 p-5 text-white">
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-sm text-slate-400">Grand Total (Ex. GST)</span>
-                                </div>
-                                <div className="flex justify-between items-baseline">
-                                    <span className="text-3xl font-bold tracking-tight">{calculation ? formatCurrency(calculation.totalProjectSell, 'INR') : '-'}</span>
-                                </div>
-                                <button onClick={() => onSaveQuote(calculation?.totalProjectSell)} className="w-full mt-4 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg shadow-teal-900/20 transition-all flex justify-center items-center gap-2">
-                                    <Save size={18} /> Save Quote
-                                </button>
-                            </div>
+                            ))}
                         </div>
+                    </details>
+                </>
+            ) : (
+                // Single Screen Breakdown
+                <>
+                    <div className="flex justify-between items-end">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">LED Panel Price</span>
+                        <span className="font-bold text-slate-800 dark:text-white">
+                            {calculation ? formatCurrency(calculation.matrix.led.sell * calculation.screenQty, 'INR') : '-'}
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-end">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Services & Extras</span>
+                        <span className="font-bold text-slate-800 dark:text-white">
+                            {calculation ? formatCurrency((calculation.matrix.sell.total - (calculation.matrix.led.sell * calculation.screenQty)), 'INR') : '-'}
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-end pt-2 mt-2 border-t border-dashed border-slate-200 dark:border-slate-600">
+                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Rate / Sq.Ft</span>
+                        <span className="font-bold text-slate-500 dark:text-slate-400">
+                            {calculation ? formatCurrency(calculation.matrix.sell.sqft, 'INR') : '-'}
+                        </span>
+                    </div>
+                </>
+            )}
+        </div>
+    </div>
+    
+    <div className="bg-slate-900 p-5 text-white">
+        <div className="flex justify-between items-center mb-1">
+            <span className="text-sm text-slate-400">Grand Total (Ex. GST)</span>
+            {state.screens.length > 1 && (
+                <span className="text-xs text-teal-400 font-bold">{allScreensTotal?.totalScreenQty || 0} screens</span>
+            )}
+        </div>
+        <div className="flex justify-between items-baseline">
+            <span className="text-3xl font-bold tracking-tight">
+                {allScreensTotal 
+                    ? formatCurrency(allScreensTotal.totalProjectSell, 'INR') 
+                    : (calculation ? formatCurrency(calculation.totalProjectSell, 'INR') : '-')}
+            </span>
+        </div>
+        <button 
+            onClick={() => onSaveQuote(allScreensTotal ? allScreensTotal.totalProjectSell : calculation?.totalProjectSell)} 
+            className="w-full mt-4 py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg shadow-teal-900/20 transition-all flex justify-center items-center gap-2"
+        >
+            <Save size={18} /> Save Quote
+        </button>
+    </div>
+</div>
 
                         {/* Visualizer (Moved Down) */}
                         <div className="bg-slate-900 rounded-xl shadow-lg p-6 text-white overflow-hidden relative min-h-[250px] flex items-center justify-center">
@@ -2098,8 +2711,45 @@
 
             // Initial State
             const initialCalcState = {
-                client: '', project: '', screenQty: 0, targetWidth: 0, targetHeight: 0, unit: 'm',
-                selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
+    client: '', project: '', unit: 'm',
+    screens: [
+        {
+            id: generateId(),
+            screenQty: 0,
+            targetWidth: 0,
+            targetHeight: 0,
+            selectedIndoor: 'true',
+            assemblyMode: 'assembled',
+            selectedPitch: '',
+            selectedModuleId: '',
+            selectedCabinetId: '',
+            selectedCardId: '',
+            selectedPSUId: '',
+            selectedProcId: '',
+            sizingMode: 'closest',
+            readyId: '',
+            extraComponents: [],
+            overrides: {},
+            editingRow: null,
+            extras: {
+                assembly: { val: 0, type: 'abs' },
+                hardware: { val: 0, type: 'abs' },
+                packaging: { val: 0, type: 'abs' },
+                transport: { val: 0, type: 'abs' },
+                install: { val: 0, type: 'abs' },
+                wastage: { val: 0, type: 'abs' },
+                overheads: { val: 0, type: 'abs' },
+                structure: { val: 0, type: 'abs' }
+            },
+            commercials: {
+                processor: {val: 0, unit: 'screen'},
+                installation: {val: 0, unit: 'sqft'},
+                structure: {val: 0, unit: 'sqft'}
+            }
+        }
+    ],
+    activeScreenIndex: 0,
+    selectedIndoor: 'true', assemblyMode: 'assembled', selectedPitch: '',
                 selectedModuleId: '', selectedCabinetId: '', selectedCardId: '',
                 selectedPSUId: '', selectedProcId: '', sizingMode: 'closest', readyId: '',
                 margin: 0, targetSellPrice: 0, pricingMode: 'margin',
@@ -2161,15 +2811,22 @@
             }, [user]);
 
             const handleSaveQuote = async (finalAmount) => {
-                if (!calcState.client || !calcState.project) return alert("Please enter Client and Project names.");
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('quotes').add({
-                        client: calcState.client,
-                        project: calcState.project,
-                        calculatorState: calcState,
-                        finalAmount: finalAmount || 0,
-                        updatedAt: new Date()
-                    });
+    if (!calcState.client || !calcState.project) return alert("Please enter Client and Project names.");
+    
+    // Calculate all screens data for saving
+    const allScreensData = calculateAllScreens();
+    
+    try {
+        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('quotes').add({
+            client: calcState.client,
+            project: calcState.project,
+            calculatorState: calcState,
+            finalAmount: finalAmount || 0,
+            screenCount: calcState.screens.length,
+            totalScreenQty: allScreensData?.totalScreenQty || 0,
+            allScreensData: allScreensData, // Store complete calculations
+            updatedAt: new Date()
+        });
                     alert("Quote Saved Successfully!");
                 } catch (e) { console.error(e); alert("Error saving quote."); }
             };
