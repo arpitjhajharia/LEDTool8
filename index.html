@@ -822,268 +822,307 @@
             );
         };
 
-        // 4. Print Layout (Updated for Multi-Screen Support)
-        const PrintLayout = ({ data, allScreensData, currency, exchangeRate, date }) => {
-            // Determine if we are in multi-screen mode
-            const isMultiScreen = allScreensData && allScreensData.calculations && allScreensData.calculations.length > 1;
-            
-            // Normalize data source: Use the array of all screens if available, otherwise fallback to single data
-            const configs = isMultiScreen ? allScreensData.calculations : (data ? [data] : []);
-            
-            // If no data, return null
-            if (configs.length === 0) return null;
+        // 4. Print Layout - Dual Render (Preserves Preview & Fixes Print)
+const PrintLayout = ({ data, allScreensData, currency = 'INR', exchangeRate, date }) => {
+    // 1. Data Preparation
+    const isMultiScreen = allScreensData && allScreensData.calculations && allScreensData.calculations.length > 1;
+    const configs = isMultiScreen ? allScreensData.calculations : (data ? [data] : []);
 
-            // Common Project Info (Taken from first config or wrapper)
-            const clientName = isMultiScreen ? allScreensData.clientName : data?.clientName;
-            const projectName = isMultiScreen ? allScreensData.projectName : data?.projectName;
-            const terms = configs[0].terms; // Use terms from the first configuration
-            const grandTotalProject = isMultiScreen ? allScreensData.totalProjectSell : data?.totalProjectSell;
+    if (configs.length === 0) return null;
 
-            return (
-                <div className="p-8 max-w-[210mm] mx-auto bg-white min-h-screen text-slate-800 print:p-0 print:w-full font-sans text-xs">
-                    {/* Header - Rendered Once */}
-                    <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">ADMIRE SIGN & DISPLAY PVT. LTD.</h1>
-                            <div className="text-[10px] text-slate-600 mt-1 space-y-0.5">
-                                <p>102, Priya Industrial Estate 4, K.T. Industrial Estate</p>
-                                <p>Kherpada, Waliv, Vasai East, Mumbai - 401208</p>
-                                <p>Email: info@admiresignage.com | Web: www.admiresignage.com</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <h2 className="text-xl font-light text-slate-500">QUOTATION</h2>
-                            <p className="text-sm font-bold text-slate-700">Date: {date || new Date().toLocaleDateString()}</p>
-                            {isMultiScreen && <p className="text-xs text-slate-500 mt-1">Consolidated Quote</p>}
-                        </div>
+    // 2. Extract Shared Details
+    const clientName = (isMultiScreen ? allScreensData.clientName : data?.clientName) || '';
+    const projectName = (isMultiScreen ? allScreensData.projectName : data?.projectName) || '';
+    const terms = configs[0].terms || {};
+    const grandTotalProject = isMultiScreen ? allScreensData.totalProjectSell : data?.totalProjectSell;
+
+    // 3. Content Generator (Renders the FULL Advanced Quote)
+    const renderContent = (isPrintVersion) => (
+        <div className={`bg-white text-slate-800 font-sans text-xs ${isPrintVersion ? 'print-version-container p-0' : 'preview-version-container w-full h-full p-8'}`}>
+            
+            {/* Header */}
+            <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-wide">ADMIRE SIGN & DISPLAY PVT. LTD.</h1>
+                    <div className="text-[10px] text-slate-600 mt-1 space-y-0.5">
+                        <p>102, Priya Industrial Estate 4, K.T. Industrial Estate</p>
+                        <p>Kherpada, Waliv, Vasai East, Mumbai - 401208</p>
+                        <p>Email: info@admiresignage.com | Web: www.admiresignage.com</p>
                     </div>
+                </div>
+                <div className="text-right">
+                    <h2 className="text-xl font-light text-slate-500">QUOTATION</h2>
+                    <p className="text-sm font-bold text-slate-700">Date: {date || new Date().toLocaleDateString()}</p>
+                    {isMultiScreen && <p className="text-xs text-slate-500 mt-1">Consolidated Quote</p>}
+                </div>
+            </div>
 
-                    {/* Loop through each configuration */}
-                    {configs.map((config, index) => {
-                        const { 
-                            finalWidth, finalHeight, totalCabinets, 
-                            moduleType, cabinetType, processor, screenQty, totalProjectSell, 
-                            gridCols, gridRows
-                        } = config;
+            {/* Loop through each configuration */}
+            {configs.map((config, index) => {
+                const { 
+                    finalWidth, finalHeight, totalCabinets, 
+                    moduleType = {}, cabinetType = {}, processor, screenQty, totalProjectSell, 
+                    gridCols, gridRows, commercials
+                } = config;
 
-                        // 1. Technical Calculations
-                        const screenWidthM = Number(finalWidth);
-                        const screenHeightM = Number(finalHeight);
-                        const areaSqm = screenWidthM * screenHeightM;
-                        const areaSqft = areaSqm * 10.7639;
+                // Technical Calculations
+                const screenWidthM = Number(finalWidth);
+                const screenHeightM = Number(finalHeight);
+                const areaSqm = screenWidthM * screenHeightM;
+                const areaSqft = areaSqm * 10.7639;
+                
+                const pitch = Number(moduleType.pitch || 0);
+                const resW = pitch > 0 ? Math.round((screenWidthM * 1000) / pitch) : 0;
+                const resH = pitch > 0 ? Math.round((screenHeightM * 1000) / pitch) : 0;
 
-                        const resW = Math.round((screenWidthM * 1000) / moduleType.pitch);
-                        const resH = Math.round((screenHeightM * 1000) / moduleType.pitch);
+                // Weight & Power Logic
+                const totalModWeight = (moduleType.weight || 0) * areaSqm;
+                const totalCabWeight = (cabinetType.weight || 0) * totalCabinets;
+                const totalWeight = totalModWeight + totalCabWeight;
 
-                        const totalModWeight = (moduleType.weight || 0) * areaSqm;
-                        const totalCabWeight = (cabinetType.weight || 0) * totalCabinets;
-                        const totalWeight = totalModWeight + totalCabWeight;
+                const avgPower = (moduleType.avgPower || 0) * areaSqm; 
+                const maxPower = (moduleType.maxPower || 0) * areaSqm; 
 
-                        const avgPower = (moduleType.avgPower || 0) * areaSqm; 
-                        const maxPower = (moduleType.maxPower || 0) * areaSqm; 
+                // Commercials Logic
+                const comms = commercials || { sellProcTotal: 0, sellInstallTotal: 0, sellStructureTotal: 0 };
+                const sellTotalPerScreen = totalProjectSell / (screenQty || 1);
+                const sellProc = (comms.sellProcTotal || 0) / (screenQty || 1);
+                const sellInstall = (comms.sellInstallTotal || 0) / (screenQty || 1);
+                const sellStructure = (comms.sellStructureTotal || 0) / (screenQty || 1);
+                
+                const sellLEDBase = sellTotalPerScreen - sellProc - sellInstall - sellStructure;
+                const sellSpares = sellLEDBase * 0.02; 
+                const sellLEDFinal = sellLEDBase - sellSpares;
 
-                        // 2. Commercial Calculations
-                        const comms = config.commercials || { sellProcTotal: 0, sellInstallTotal: 0, sellStructureTotal: 0 };
-                        
-                        const sellTotalPerScreen = totalProjectSell / screenQty;
-                        const sellProc = comms.sellProcTotal / screenQty;
-                        const sellInstall = comms.sellInstallTotal / screenQty;
-                        const sellStructure = comms.sellStructureTotal / screenQty;
-                        
-                        // LED Panel Base = Total - (Processor + Install + Structure)
-                        const sellLEDBase = sellTotalPerScreen - sellProc - sellInstall - sellStructure;
-                        const sellSpares = sellLEDBase * 0.02;
-                        const sellLEDFinal = sellLEDBase - sellSpares;
+                const commercialRows = [
+                    { name: "LED Panel", rate: sellLEDFinal },
+                    { name: "Processor", rate: sellProc },
+                    { name: "Installation", rate: sellInstall },
+                    { name: "Spares (2%)", rate: sellSpares },
+                    { name: "Structure", rate: sellStructure },
+                ].filter(r => r.rate > 0);
 
-                        const commercialRows = [
-                            { name: "LED Panel", rate: sellLEDFinal },
-                            { name: "Processor", rate: sellProc },
-                            { name: "Installation", rate: sellInstall },
-                            { name: "Spares (2%)", rate: sellSpares },
-                            { name: "Structure", rate: sellStructure },
-                        ].filter(r => r.rate > 0);
+                return (
+                    <div key={index} className="mb-10 pb-6 border-b-2 border-slate-100 break-inside-avoid print-break-avoid">
+                        {isMultiScreen && (
+                                <div className="mb-4 pb-2 border-b border-teal-500">
+                                <h2 className="text-lg font-bold text-teal-800 uppercase">Configuration #{index + 1}</h2>
+                            </div>
+                        )}
 
-                        return (
-                            <div key={index} className="mb-10 break-inside-avoid border-b-2 border-slate-100 pb-6">
-                                {isMultiScreen && (
-                                     <div className="mb-4 pb-2 border-b border-teal-500">
-                                        <h2 className="text-lg font-bold text-teal-800 uppercase">Configuration #{index + 1}</h2>
-                                    </div>
-                                )}
-
-                                {/* Project & Screen Details */}
-                                <div className="grid grid-cols-2 gap-6 mb-6">
-                                    <div>
-                                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2">Project Details</h3>
-                                        <div className="grid grid-cols-3 gap-y-1 text-[11px]">
-                                            <span className="font-semibold text-slate-500">Client:</span> <span className="col-span-2 font-bold">{clientName}</span>
-                                            <span className="font-semibold text-slate-500">Project:</span> <span className="col-span-2 font-bold">{projectName}</span>
-                                            <span className="font-semibold text-slate-500">Screen Size:</span> <span className="col-span-2">{screenWidthM}m (W) x {screenHeightM}m (H)</span>
-                                            <span className="font-semibold text-slate-500">Quantity:</span> <span className="col-span-2">{screenQty} Nos</span>
-                                        </div>
-
-                                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mt-4 mb-2">Module & Cabinet</h3>
-                                        <div className="grid grid-cols-3 gap-y-1 text-[11px]">
-                                            <span className="font-semibold text-slate-500">Module:</span> <span className="col-span-2">{moduleType.brand} P{moduleType.pitch}</span>
-                                            <span className="font-semibold text-slate-500">Mod Size:</span> <span className="col-span-2">{moduleType.width} x {moduleType.height} mm</span>
-                                            <span className="font-semibold text-slate-500">Lamp:</span> <span className="col-span-2">{moduleType.lampMake || '-'}</span>
-                                            <span className="font-semibold text-slate-500">Cabinet:</span> <span className="col-span-2">{cabinetType.material || 'Standard'}</span>
-                                            <span className="font-semibold text-slate-500">Cab Size:</span> <span className="col-span-2">{cabinetType.width} x {cabinetType.height} mm</span>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2">Screen Specifications</h3>
-                                        <div className="grid grid-cols-3 gap-y-1 text-[11px]">
-                                            <span className="font-semibold text-slate-500">Resolution:</span> <span className="col-span-2">{resW} x {resH} pixels</span>
-                                            <span className="font-semibold text-slate-500">Total Area:</span> <span className="col-span-2">{areaSqft.toFixed(2)} Sq.ft / {areaSqm.toFixed(2)} Sq.m</span>
-                                            <span className="font-semibold text-slate-500">Total Weight:</span> <span className="col-span-2">{totalWeight.toFixed(1)} kg</span>
-                                            <span className="font-semibold text-slate-500">Avg Power:</span> <span className="col-span-2">{(avgPower).toFixed(0)} Watts</span>
-                                            <span className="font-semibold text-slate-500">Max Power:</span> <span className="col-span-2">{(maxPower).toFixed(0)} Watts</span>
-                                            <span className="font-semibold text-slate-500">Brightness:</span> <span className="col-span-2">{moduleType.brightness} nits</span>
-                                            <span className="font-semibold text-slate-500">Refresh Rate:</span> <span className="col-span-2">{moduleType.refreshRate} Hz</span>
-                                            <span className="font-semibold text-slate-500">Controller:</span> <span className="col-span-2">{processor ? `${processor.brand} ${processor.model}` : 'Standard'}</span>
-                                            <span className="font-semibold text-slate-500">Viewing:</span> <span className="col-span-2">H: {moduleType.viewAngleH}° / V: {moduleType.viewAngleV}°</span>
-                                            <span className="font-semibold text-slate-500">IP Rating:</span> <span className="col-span-2">Front: IP{moduleType.ipFront} / Back: IP{moduleType.ipBack}</span>
-                                        </div>
-                                    </div>
+                        {/* Project & Screen Details */}
+                        <div className="grid grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2">Project Details</h3>
+                                <div className="grid grid-cols-3 gap-y-1 text-[11px]">
+                                    <span className="font-semibold text-slate-500">Client:</span> <span className="col-span-2 font-bold">{clientName}</span>
+                                    <span className="font-semibold text-slate-500">Project:</span> <span className="col-span-2 font-bold">{projectName}</span>
+                                    <span className="font-semibold text-slate-500">Screen Size:</span> <span className="col-span-2">{screenWidthM}m (W) x {screenHeightM}m (H)</span>
+                                    <span className="font-semibold text-slate-500">Quantity:</span> <span className="col-span-2">{screenQty} Nos</span>
                                 </div>
 
-                                {/* Visualizer */}
-                                <div className="mb-6 border rounded-lg p-2 bg-slate-50 break-inside-avoid">
+                                <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mt-4 mb-2">Module & Cabinet</h3>
+                                <div className="grid grid-cols-3 gap-y-1 text-[11px]">
+                                    <span className="font-semibold text-slate-500">Module:</span> <span className="col-span-2">{moduleType.brand} P{moduleType.pitch}</span>
+                                    <span className="font-semibold text-slate-500">Mod Size:</span> <span className="col-span-2">{moduleType.width} x {moduleType.height} mm</span>
+                                    {/* Restore Lamp & Cab Size */}
+                                    <span className="font-semibold text-slate-500">Lamp:</span> <span className="col-span-2">{moduleType.lampMake || '-'}</span>
+                                    <span className="font-semibold text-slate-500">Cabinet:</span> <span className="col-span-2">{cabinetType.material || 'Standard'}</span>
+                                    <span className="font-semibold text-slate-500">Cab Size:</span> <span className="col-span-2">{cabinetType.width} x {cabinetType.height} mm</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2">Screen Specifications</h3>
+                                <div className="grid grid-cols-3 gap-y-1 text-[11px]">
+                                    <span className="font-semibold text-slate-500">Resolution:</span> <span className="col-span-2">{resW} x {resH} pixels</span>
+                                    <span className="font-semibold text-slate-500">Total Area:</span> <span className="col-span-2">{areaSqft.toFixed(2)} Sq.ft / {areaSqm.toFixed(2)} Sq.m</span>
+                                    {/* Restore Missing Specs */}
+                                    <span className="font-semibold text-slate-500">Total Weight:</span> <span className="col-span-2">{totalWeight.toFixed(1)} kg</span>
+                                    <span className="font-semibold text-slate-500">Avg Power:</span> <span className="col-span-2">{(avgPower).toFixed(0)} Watts</span>
+                                    <span className="font-semibold text-slate-500">Max Power:</span> <span className="col-span-2">{(maxPower).toFixed(0)} Watts</span>
+                                    <span className="font-semibold text-slate-500">Brightness:</span> <span className="col-span-2">{moduleType.brightness} nits</span>
+                                    <span className="font-semibold text-slate-500">Refresh Rate:</span> <span className="col-span-2">{moduleType.refreshRate} Hz</span>
+                                    <span className="font-semibold text-slate-500">Controller:</span> <span className="col-span-2">{processor ? `${processor.brand} ${processor.model}` : 'Standard'}</span>
+                                    <span className="font-semibold text-slate-500">Viewing:</span> <span className="col-span-2">H: {moduleType.viewAngleH}° / V: {moduleType.viewAngleV}°</span>
+                                    <span className="font-semibold text-slate-500">IP Rating:</span> <span className="col-span-2">Front: IP{moduleType.ipFront} / Back: IP{moduleType.ipBack}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Visualizer */}
+                        {moduleType && cabinetType && (
+                            <div className="mb-6 border rounded-lg p-2 bg-slate-50 flex justify-center break-inside-avoid print-break-avoid">
+                                <div style={{width: '60%'}}>
                                     <ScreenVisualizer cols={gridCols} rows={gridRows} module={moduleType} cabinet={cabinetType} unit="m" />
                                 </div>
-
-                                {/* Commercial Quote */}
-                                <div className="mb-2 break-inside-avoid">
-                                    <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2 pb-1">Commercial Proposal {isMultiScreen ? `(Config #${index+1})` : ''}</h3>
-                                    <table className="w-full border-collapse border border-slate-300 text-[11px]">
-                                        <thead className="bg-slate-800 text-white">
-                                            <tr>
-                                                <th className="p-2 border border-slate-600 text-left w-12">#</th>
-                                                <th className="p-2 border border-slate-600 text-left">Item Description</th>
-                                                <th className="p-2 border border-slate-600 text-right w-32">Amount (1 Screen)</th>
-                                                <th className="p-2 border border-slate-600 text-right w-32">Amount ({screenQty} Screens)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {commercialRows.map((row, i) => (
-                                                <tr key={i}>
-                                                    <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
-                                                    <td className="p-2 border border-slate-300 font-bold">{row.name}</td>
-                                                    <td className="p-2 border border-slate-300 text-right">{formatCurrency(row.rate, currency)}</td>
-                                                    <td className="p-2 border border-slate-300 text-right font-bold">{formatCurrency(row.rate * screenQty, currency)}</td>
-                                                </tr>
-                                            ))}
-                                            <tr className="bg-slate-100">
-                                                <td colSpan="3" className="p-2 border border-slate-300 text-right font-bold uppercase">Subtotal (Excl. GST)</td>
-                                                <td className="p-2 border border-slate-300 text-right font-bold text-sm">{formatCurrency(totalProjectSell, currency)}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
                             </div>
-                        );
-                    })}
-                    
-                    {/* Grand Total for Multi-Screen */}
-                    {isMultiScreen && (
-                        <div className="mb-8 break-inside-avoid">
-                            <div className="bg-slate-800 text-white p-4 rounded-lg flex justify-between items-center shadow-lg">
-                                <div className="text-lg font-bold uppercase tracking-wide">Grand Total (All Configurations)</div>
-                                <div className="text-2xl font-bold">{formatCurrency(grandTotalProject, currency)} <span className="text-xs font-normal opacity-70">(Excl. GST)</span></div>
-                            </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Terms & Conditions (Rendered Once) */}
-                    <div className="break-inside-avoid mt-8">
-                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2 pb-1">Terms & Conditions</h3>
-                        
-                        <div className="text-[10px] text-slate-600 space-y-3">
-                            <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-4">
-                                <div className="font-bold text-slate-800">PRICE</div>
-                                <div>{terms?.price || 'Ex-works Mumbai'}</div>
-
-                                <div className="font-bold text-slate-800">PAYMENT</div>
-                                <div>
-                                    {(terms?.payment || []).map((p, i) => (
-                                        <span key={i}>{p.percent}% {p.name}{i < (terms?.payment?.length || 0) - 1 ? ', ' : '.'} </span>
+                        {/* Commercial Quote */}
+                        <div className="mb-2 break-inside-avoid print-break-avoid">
+                            <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2 pb-1">Commercial Proposal {isMultiScreen ? `(Config #${index+1})` : ''}</h3>
+                            <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                                <thead className="bg-slate-800 text-white">
+                                    <tr>
+                                        <th className="p-2 border border-slate-600 text-left w-12">#</th>
+                                        <th className="p-2 border border-slate-600 text-left">Item Description</th>
+                                        <th className="p-2 border border-slate-600 text-right w-32">Amount (1 Screen)</th>
+                                        <th className="p-2 border border-slate-600 text-right w-32">Amount ({screenQty} Screens)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {commercialRows.map((row, i) => (
+                                        <tr key={i}>
+                                            <td className="p-2 border border-slate-300 text-center">{i + 1}</td>
+                                            <td className="p-2 border border-slate-300 font-bold">{row.name}</td>
+                                            <td className="p-2 border border-slate-300 text-right">{formatCurrency(row.rate, currency)}</td>
+                                            <td className="p-2 border border-slate-300 text-right font-bold">{formatCurrency(row.rate * screenQty, currency)}</td>
+                                        </tr>
                                     ))}
-                                </div>
-
-                                <div className="font-bold text-slate-800">DELIVERY</div>
-                                <div>Within {terms?.deliveryWeeks} weeks from the date of receipt of advance payment with order.</div>
-
-                                <div className="font-bold text-slate-800">GST</div>
-                                <div>Extra as applicable (currently 18%)</div>
-
-                                <div className="font-bold text-slate-800">WARRANTY</div>
-                                <div className="text-justify leading-snug">
-                                    Against any manufacturing defect. Offsite support for troubleshooting. Client can sign up for Admire’s excellent AMC services for on-site support. 
-                                    Serious fault will be attended to by our technical team within 48-72 hours upon receipt of written complaints with pictures/videos of the fault. 
-                                    1% Extra spares includes Modules, Power Supply, Receiver Card (if there are over 100 cabinets), Flat cables, 5V connectors, Power and Data Cable. 
-                                    Any damage to the screen due to force majure, natural disasters, electricity surge, earthing, accident, etc is not covered under the warranty. 
-                                    Power supplies damage due to power fluctuation will not be covered under warranty. Power supply will be under the direct warranty of the OEM supplier. 
-                                    If the repair requires additional components then these will be charged extra. Brightness control meter, Video Processor & Timer can be supplied at extra cost. 
-                                    Maintenance team visit in six months during warranty period.
-                                </div>
-                            </div>
+                                    <tr className="bg-slate-100">
+                                        <td colSpan="3" className="p-2 border border-slate-300 text-right font-bold uppercase">Subtotal (Excl. GST)</td>
+                                        <td className="p-2 border border-slate-300 text-right font-bold text-sm">{formatCurrency(totalProjectSell, currency)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
+                    </div>
+                );
+            })}
+            
+            {/* Grand Total */}
+            {isMultiScreen && (
+                <div className="mb-8 break-inside-avoid print-break-avoid">
+                    <div className="bg-slate-800 text-white p-4 rounded-lg flex justify-between items-center shadow-lg">
+                        <div className="text-lg font-bold uppercase tracking-wide">Grand Total</div>
+                        <div className="text-2xl font-bold">{formatCurrency(grandTotalProject, currency)} <span className="text-xs font-normal opacity-70">(Excl. GST)</span></div>
+                    </div>
+                </div>
+            )}
 
-                        <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mt-4 mb-2 pb-1">Client's Scope</h3>
-                        <div className="text-[10px] text-slate-600 grid gap-y-2">
-                            <div>
-                                <span className="font-bold text-slate-800 block">Structure:</span>
-                                Foundation & Structure. Structural stability certificate from a consultant. For wall mounted outdoor screen, Client to ensure strong and solid brick wall, RCC beams and column base. 
-                                For front access indoor screen, Client to ensure a strong base. Indoor Structures cannot be mounted on ACP Sheets, Gypsum boards etc. 
-                                Scaffolding, Aluminium composite panelling if required. Personnel for troubleshooting training during the screen installation. Helpers for loading, unloading and installing the display at site.
-                            </div>
-                            <div>
-                                <span className="font-bold text-slate-800 block">Electricity:</span>
-                                Electricity 3 phase electric power near the site, not more than 5m from the site, before the commencement of work. Electrical distribution board within 5m from the screen. 
-                                Conduited electrical cable. 4mm 2 core armored cable or 4mm 3 core cables, 32 ampere MCB, 1 switch board with 2 sockets. 
-                                Good quality Stabiliser and timers. 1 Certified electrical engineer for all connections from power Main to the unit. Ventilation machineries such as Air Conditioners or Fans.
-                            </div>
-                            <div>
-                                <span className="font-bold text-slate-800 block">Internet:</span>
-                                CAT 6 or Optic Fiber Data cable and its terminations. Data points near the screen. Space with power sockets for Video wall Controllers. 
-                                Data source/AV room within 80 meters of the screen. Connections to be availed through CAT 6 cables duly terminated with RJ45. 
-                                If the length is farther then Fiber optic converter will be required. Fiber optic converters, if required, will be charged extra. 
-                                In case the fiber optic converter is required, single mode Fiber optic cable is to be provided by client from source point to the display, terminated as per specs with Patch Chords from the splicing unit to connect to screen.
-                            </div>
-                            <div>
-                                <span className="font-bold text-slate-800 block">Software:</span>
-                                3rd party Software for Content upload on screen will be provided by the controller card supplier. Admire cannot provide regular updates and application stability.
-                            </div>
-                            <div>
-                                <span className="font-bold text-slate-800 block">Permissions:</span>
-                                All permissions such as PTW, work permits & gate passes for workers, engineers and executives.
-                            </div>
-                            <div>
-                                <span className="font-bold text-slate-800 block">Computer:</span>
-                                As per specification, to be arranged by client.
-                            </div>
-                            <div>
-                                <span className="font-bold text-slate-800 block">Validity:</span>
-                                30 days.
-                            </div>
-                        </div>
+            {/* Terms & Scope */}
+            <div className="mt-8 break-inside-avoid print-break-avoid">
+                <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mb-2 pb-1">Terms & Conditions</h3>
+                <div className="text-[10px] text-slate-600 space-y-3">
+                    <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-4">
+                        <div className="font-bold text-slate-800">PRICE</div><div>{terms.price}</div>
+                        <div className="font-bold text-slate-800">PAYMENT</div>
+                        <div>{(terms.payment || []).map((p, i) => <span key={i}>{p.percent}% {p.name}{i < (terms.payment || []).length - 1 ? ', ' : ''}</span>)}</div>
+                        <div className="font-bold text-slate-800">DELIVERY</div><div>Within {terms.deliveryWeeks} weeks from the date of receipt of advance payment with order.</div>
+                        
+                        {/* Restore GST & Warranty */}
+                        <div className="font-bold text-slate-800">GST</div>
+                        <div>Extra as applicable (currently 18%)</div>
 
-                        <div className="mt-8 pt-8 border-t border-slate-200 flex justify-between items-end">
-                            <div className="text-center">
-                                <div className="h-12 mb-2"></div>
-                                <p className="text-[10px] font-bold border-t border-slate-400 px-4 pt-1">Client Acceptance</p>
-                            </div>
-                            <div className="text-center">
-                                <div className="h-12 mb-2"></div>
-                                <p className="text-[10px] font-bold border-t border-slate-400 px-4 pt-1">For Admire Sign & Display Pvt. Ltd.</p>
-                            </div>
+                        <div className="font-bold text-slate-800">WARRANTY</div>
+                        <div className="text-justify leading-snug">
+                            Against any manufacturing defect. Offsite support for troubleshooting. Client can sign up for Admire’s excellent AMC services for on-site support. 
+                            Serious fault will be attended to by our technical team within 48-72 hours upon receipt of written complaints with pictures/videos of the fault. 
+                            1% Extra spares includes Modules, Power Supply, Receiver Card (if there are over 100 cabinets), Flat cables, 5V connectors, Power and Data Cable. 
+                            Any damage to the screen due to force majure, natural disasters, electricity surge, earthing, accident, etc is not covered under the warranty. 
+                            Power supplies damage due to power fluctuation will not be covered under warranty. Power supply will be under the direct warranty of the OEM supplier. 
+                            If the repair requires additional components then these will be charged extra. Brightness control meter, Video Processor & Timer can be supplied at extra cost. 
+                            Maintenance team visit in six months during warranty period.
                         </div>
                     </div>
                 </div>
-            );
-        };
+
+                {/* Restore Client's Scope */}
+                <h3 className="font-bold text-slate-700 uppercase border-b border-slate-300 mt-4 mb-2 pb-1">Client's Scope</h3>
+                <div className="text-[10px] text-slate-600 grid gap-y-2">
+                    <div>
+                        <span className="font-bold text-slate-800 block">Structure:</span>
+                        Foundation & Structure. Structural stability certificate from a consultant. For wall mounted outdoor screen, Client to ensure strong and solid brick wall, RCC beams and column base. 
+                        For front access indoor screen, Client to ensure a strong base. Indoor Structures cannot be mounted on ACP Sheets, Gypsum boards etc. 
+                        Scaffolding, Aluminium composite panelling if required. Personnel for troubleshooting training during the screen installation. Helpers for loading, unloading and installing the display at site.
+                    </div>
+                    <div>
+                        <span className="font-bold text-slate-800 block">Electricity:</span>
+                        Electricity 3 phase electric power near the site, not more than 5m from the site, before the commencement of work. Electrical distribution board within 5m from the screen. 
+                        Conduited electrical cable. 4mm 2 core armored cable or 4mm 3 core cables, 32 ampere MCB, 1 switch board with 2 sockets. 
+                        Good quality Stabiliser and timers. 1 Certified electrical engineer for all connections from power Main to the unit. Ventilation machineries such as Air Conditioners or Fans.
+                    </div>
+                    <div>
+                        <span className="font-bold text-slate-800 block">Internet:</span>
+                        CAT 6 or Optic Fiber Data cable and its terminations. Data points near the screen. Space with power sockets for Video wall Controllers. 
+                        Data source/AV room within 80 meters of the screen. Connections to be availed through CAT 6 cables duly terminated with RJ45. 
+                        If the length is farther then Fiber optic converter will be required. Fiber optic converters, if required, will be charged extra. 
+                        In case the fiber optic converter is required, single mode Fiber optic cable is to be provided by client from source point to the display, terminated as per specs with Patch Chords from the splicing unit to connect to screen.
+                    </div>
+                    <div>
+                        <span className="font-bold text-slate-800 block">Software:</span>
+                        3rd party Software for Content upload on screen will be provided by the controller card supplier. Admire cannot provide regular updates and application stability.
+                    </div>
+                    <div>
+                        <span className="font-bold text-slate-800 block">Permissions:</span>
+                        All permissions such as PTW, work permits & gate passes for workers, engineers and executives.
+                    </div>
+                    <div>
+                        <span className="font-bold text-slate-800 block">Computer:</span>
+                        As per specification, to be arranged by client.
+                    </div>
+                    <div>
+                        <span className="font-bold text-slate-800 block">Validity:</span>
+                        30 days.
+                    </div>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-slate-200 flex justify-between items-end">
+                    <div className="text-center">
+                        <div className="h-12 mb-2"></div>
+                        <p className="text-[10px] font-bold border-t border-slate-400 px-4 pt-1">Client Acceptance</p>
+                    </div>
+                    <div className="text-center">
+                        <div className="h-12 mb-2"></div>
+                        <p className="text-[10px] font-bold border-t border-slate-400 px-4 pt-1">For Admire Sign & Display Pvt. Ltd.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    // 4. Return Dual Output (Preview & Portal Print)
+    return (
+        <React.Fragment>
+            <style>{`
+                .print-only-portal { display: none; }
+                .screen-preview-wrapper { display: block; width: 100%; height: 100%; }
+
+                @media print {
+                    body > *:not(.print-only-portal) { display: none !important; }
+                    
+                    .print-only-portal { 
+                        display: block !important; 
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100% !important;
+                        background: white !important;
+                        z-index: 99999 !important;
+                    }
+                    
+                    @page { size: A4; margin: 10mm; }
+                    html, body { height: auto !important; overflow: visible !important; background: white !important; }
+                    .print-break-avoid { break-inside: avoid; page-break-inside: avoid; }
+                }
+            `}</style>
+
+            {/* A. Preview Copy */}
+            <div className="screen-preview-wrapper">
+                {renderContent(false)}
+            </div>
+
+            {/* B. Print Copy (Portal) */}
+            {ReactDOM.createPortal(
+                <div className="print-only-portal">
+                    {renderContent(true)}
+                </div>, 
+                document.body
+            )}
+        </React.Fragment>
+    );
+};
 
       // 6. BOM Layout - Updated for Multi-Screen Support
 const BOMLayout = ({ data, allScreensData }) => {
